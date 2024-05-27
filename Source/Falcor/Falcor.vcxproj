@@ -122,6 +122,7 @@
     <ClInclude Include="Core\Window.h" />
     <ShaderSource Include="Core\API\BlitReduction.slang" />
     <ClInclude Include="Experimental\ScreenSpaceReSTIR\ScreenSpaceReSTIR.h" />
+    <ClInclude Include="Experimental\WorldSpaceReSTIRGI\WorldSpaceReSTIRGI.h" />
     <ClInclude Include="Raytracing\RtBindingTable.h" />
     <ClInclude Include="Raytracing\RtProgramVars.h" />
     <ClInclude Include="Raytracing\RtProgramVarsHelper.h" />
@@ -172,6 +173,18 @@
     <ShaderSource Include="Experimental\ScreenSpaceReSTIR\SurfaceData.slang" />
     <ShaderSource Include="Experimental\ScreenSpaceReSTIR\TemporalResampling.cs.slang" />
     <ShaderSource Include="Experimental\ScreenSpaceReSTIR\UpdateEmissiveTriangles.cs.slang" />
+    <ShaderSource Include="Experimental\WorldSpaceReSTIRGI\BuildHashGrid.cs.slang" />
+    <ShaderSource Include="Experimental\WorldSpaceReSTIRGI\FinalSample.cs.slang" />
+    <ShaderSource Include="Experimental\WorldSpaceReSTIRGI\GIFinalSample.slang" />
+    <ShaderSource Include="Experimental\WorldSpaceReSTIRGI\GIReservoir.slang" />
+    <ShaderSource Include="Experimental\WorldSpaceReSTIRGI\HashBuildStructure.slang" />
+    <ShaderSource Include="Experimental\WorldSpaceReSTIRGI\InitialReservoirs.cs.slang" />
+    <ShaderSource Include="Experimental\WorldSpaceReSTIRGI\InitialSamples.slang" />
+    <ShaderSource Include="Experimental\WorldSpaceReSTIRGI\LoadShadingData.slang" />
+    <ShaderSource Include="Experimental\WorldSpaceReSTIRGI\Params.slang" />
+    <ShaderSource Include="Experimental\WorldSpaceReSTIRGI\ReconnectionData.slang" />
+    <ShaderSource Include="Experimental\WorldSpaceReSTIRGI\ReflectTypes.cs.slang" />
+    <ShaderSource Include="Experimental\WorldSpaceReSTIRGI\SpatiotemporalResampling.cs.slang" />
     <ShaderSource Include="Rendering\Lights\EmissiveLightSampler.slang" />
     <ShaderSource Include="Rendering\Lights\EmissiveLightSamplerHelpers.slang" />
     <ShaderSource Include="Rendering\Lights\EmissiveLightSamplerInterface.slang" />
@@ -683,6 +696,7 @@
     <ClCompile Include="Experimental\ScreenSpaceReSTIR\ScreenSpaceReSTIR.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='ReleaseD3D12|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="Experimental\WorldSpaceReSTIRGI\WorldSpaceReSTIRGI.cpp" />
     <ClCompile Include="Raytracing\RtBindingTable.cpp" />
     <ClCompile Include="Raytracing\RtProgramVars.cpp" />
     <ClCompile Include="Raytracing\RtProgramVarsHelper.cpp" />

@@ -573,6 +573,9 @@
     <ClInclude Include="Experimental\ScreenSpaceReSTIR\ScreenSpaceReSTIR.h">
       <Filter>Experimental\ScreenSpaceReSTIR</Filter>
     </ClInclude>
+    <ClInclude Include="Experimental\WorldSpaceReSTIRGI\WorldSpaceReSTIRGI.h">
+      <Filter>Experimental\WorldSpaceReSTIRGI</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Core">
@@ -751,6 +754,9 @@
     </Filter>
     <Filter Include="Experimental\Scene\Material">
       <UniqueIdentifier>{7961c961-acd2-446a-b021-ae3ca612b684}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Experimental\WorldSpaceReSTIRGI">
+      <UniqueIdentifier>{8acc25eb-1faf-4d11-9373-cae240610eb2}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -1367,6 +1373,9 @@
     <ClCompile Include="Experimental\ScreenSpaceReSTIR\ScreenSpaceReSTIR.cpp">
       <Filter>Experimental\ScreenSpaceReSTIR</Filter>
     </ClCompile>
+    <ClCompile Include="Experimental\WorldSpaceReSTIRGI\WorldSpaceReSTIRGI.cpp">
+      <Filter>Experimental\WorldSpaceReSTIRGI</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Xml Include="dependencies.xml" />
@@ -1872,6 +1881,42 @@
     </ShaderSource>
     <ShaderSource Include="Experimental\Scene\Material\MaterialShading.slang">
       <Filter>Experimental\Scene\Material</Filter>
+    </ShaderSource>
+    <ShaderSource Include="Experimental\WorldSpaceReSTIRGI\BuildHashGrid.cs.slang">
+      <Filter>Experimental\WorldSpaceReSTIRGI</Filter>
+    </ShaderSource>
+    <ShaderSource Include="Experimental\WorldSpaceReSTIRGI\FinalSample.cs.slang">
+      <Filter>Experimental\WorldSpaceReSTIRGI</Filter>
+    </ShaderSource>
+    <ShaderSource Include="Experimental\WorldSpaceReSTIRGI\GIFinalSample.slang">
+      <Filter>Experimental\WorldSpaceReSTIRGI</Filter>
+    </ShaderSource>
+    <ShaderSource Include="Experimental\WorldSpaceReSTIRGI\GIReservoir.slang">
+      <Filter>Experimental\WorldSpaceReSTIRGI</Filter>
+    </ShaderSource>
+    <ShaderSource Include="Experimental\WorldSpaceReSTIRGI\HashBuildStructure.slang">
+      <Filter>Experimental\WorldSpaceReSTIRGI</Filter>
+    </ShaderSource>
+    <ShaderSource Include="Experimental\WorldSpaceReSTIRGI\InitialReservoirs.cs.slang">
+      <Filter>Experimental\WorldSpaceReSTIRGI</Filter>
+    </ShaderSource>
+    <ShaderSource Include="Experimental\WorldSpaceReSTIRGI\InitialSamples.slang">
+      <Filter>Experimental\WorldSpaceReSTIRGI</Filter>
+    </ShaderSource>
+    <ShaderSource Include="Experimental\WorldSpaceReSTIRGI\LoadShadingData.slang">
+      <Filter>Experimental\WorldSpaceReSTIRGI</Filter>
+    </ShaderSource>
+    <ShaderSource Include="Experimental\WorldSpaceReSTIRGI\Params.slang">
+      <Filter>Experimental\WorldSpaceReSTIRGI</Filter>
+    </ShaderSource>
+    <ShaderSource Include="Experimental\WorldSpaceReSTIRGI\ReconnectionData.slang">
+      <Filter>Experimental\WorldSpaceReSTIRGI</Filter>
+    </ShaderSource>
+    <ShaderSource Include="Experimental\WorldSpaceReSTIRGI\ReflectTypes.cs.slang">
+      <Filter>Experimental\WorldSpaceReSTIRGI</Filter>
+    </ShaderSource>
+    <ShaderSource Include="Experimental\WorldSpaceReSTIRGI\SpatiotemporalResampling.cs.slang">
+      <Filter>Experimental\WorldSpaceReSTIRGI</Filter>
     </ShaderSource>
   </ItemGroup>
 </Project>
