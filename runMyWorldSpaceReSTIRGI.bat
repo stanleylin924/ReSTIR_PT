@@ -1,1 +1,1 @@
-Bin\x64\Release\Mogwai.exe --script=Source\Mogwai\Data\MyWorldSpaceReSTIRGI.py
+Bin\x64\Release\Mogwai.exe --script=Scripts\MyWorldSpaceReSTIRGI.py
