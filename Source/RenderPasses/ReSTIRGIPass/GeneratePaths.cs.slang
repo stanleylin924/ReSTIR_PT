@@ -28,8 +28,11 @@
 
 struct PathGenerator
 {
-    void execute()
+    RWTexture2D<float4> outputColor;                ///< Output color buffer if kSamplesPerPixel == 1.
+
+    void execute(const uint2 pixel)
     {
+        outputColor[pixel] = float4(0.8f, 0.4f, 0.4f, 1.f);
     }
 };
 
@@ -39,7 +42,7 @@ cbuffer CB
 }
 
 [numthreads(16, 16, 1)]
-void main()
+void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 {
-    gPathGenerator.execute();
+    gPathGenerator.execute(dispatchThreadId.xy);
 }

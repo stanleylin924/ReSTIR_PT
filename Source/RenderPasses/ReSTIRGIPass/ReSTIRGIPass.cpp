@@ -148,6 +148,10 @@ void ReSTIRGIPass::execute(RenderContext* pRenderContext, const RenderData& rend
 {
     if (!beginFrame(pRenderContext, renderData)) return;
 
+    // Bind resources.
+    auto var = mpGeneratePaths->getRootVar()["CB"]["gPathGenerator"];
+    var["outputColor"] = renderData[kOutputColor]->asTexture();
+
     auto frameDim = renderData.getDefaultTextureDims();
     mpGeneratePaths->execute(pRenderContext, uint3(frameDim, 1u));
 
