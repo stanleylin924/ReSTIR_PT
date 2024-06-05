@@ -31,6 +31,56 @@
 namespace
 {
     const char kDesc[] = "Insert pass description here";    
+
+    // Render pass inputs and outputs.
+    const std::string kInputVBuffer = "vbuffer";
+    const std::string kInputMotionVectors = "motionVectors";
+    const std::string kInputDirectLighting = "directLighting";
+
+    const Falcor::ChannelList kInputChannels =
+    {
+        { kInputVBuffer,        "gVBuffer",        "Visibility buffer in packed format",   false,               ResourceFormat::Unknown },
+        { kInputMotionVectors,  "gMotionVectors",  "Motion vector buffer (float format)",  true /* optional */, ResourceFormat::RG32Float },
+        { kInputDirectLighting, "gDirectLighting", "Sample count buffer (integer format)", true /* optional */, ResourceFormat::RGBA32Float },
+    };
+
+    const std::string kOutputColor = "color";
+    const std::string kOutputAlbedo = "albedo";
+    const std::string kOutputSpecularAlbedo = "specularAlbedo";
+    const std::string kOutputIndirectAlbedo = "indirectAlbedo";
+    const std::string kOutputNormal = "normal";
+    const std::string kOutputReflectionPosW = "reflectionPosW";
+    const std::string kOutputRayCount = "rayCount";
+    const std::string kOutputPathLength = "pathLength";
+    const std::string kOutputDebug = "debug";
+    const std::string kOutputTime = "time";
+    const std::string kOutputNRDDiffuseRadianceHitDist = "nrdDiffuseRadianceHitDist";
+    const std::string kOutputNRDSpecularRadianceHitDist = "nrdSpecularRadianceHitDist";
+    const std::string kOutputNRDResidualRadianceHitDist = "nrdResidualRadianceHitDist";
+    const std::string kOutputNRDEmission = "nrdEmission";
+    const std::string kOutputNRDDiffuseReflectance = "nrdDiffuseReflectance";
+    const std::string kOutputNRDSpecularReflectance = "nrdSpecularReflectance";
+
+
+    const Falcor::ChannelList kOutputChannels =
+    {
+        { kOutputColor,                 "gOutputColor",                 "Output color (linear)", true /* optional */ },
+        { kOutputAlbedo,                "gOutputAlbedo",                "Output albedo (linear)", true /* optional */, ResourceFormat::RGBA8Unorm },
+        { kOutputNormal,                "gOutputNormal",                "Output normal (linear)", true /* optional */, ResourceFormat::RGBA16Float },
+        { kOutputRayCount,              "",                             "Per-pixel ray count", true /* optional */, ResourceFormat::R32Uint },
+        { kOutputPathLength,            "",                             "Per-pixel path length", true /* optional */, ResourceFormat::R32Uint },
+        { kOutputDebug,                 "",                             "Debug output", true /* optional */, ResourceFormat::RGBA32Float },
+        { kOutputTime,                  "",                             "Per-pixel time", true /* optional */, ResourceFormat::R32Uint },
+        { kOutputSpecularAlbedo,                "gOutputSpecularAlbedo",                "Output specular albedo (linear)", true /* optional */, ResourceFormat::RGBA8Unorm },
+        { kOutputIndirectAlbedo,                "gOutputIndirectAlbedo",                "Output indirect albedo (linear)", true /* optional */, ResourceFormat::RGBA8Unorm },
+        { kOutputReflectionPosW,                "gOutputReflectionPosW",                "Output reflection pos (world space)", true /* optional */, ResourceFormat::RGBA32Float },
+        { kOutputNRDDiffuseRadianceHitDist,     "gOutputNRDDiffuseRadianceHitDist",     "Output demodulated diffuse color (linear) and hit distance", true /* optional */, ResourceFormat::RGBA32Float },
+        { kOutputNRDSpecularRadianceHitDist,    "gOutputNRDSpecularRadianceHitDist",    "Output demodulated specular color (linear) and hit distance", true /* optional */, ResourceFormat::RGBA32Float },
+        { kOutputNRDResidualRadianceHitDist,    "gOutputNRDResidualRadianceHitDist",    "Output residual color (linear) and hit distance", true /* optional */, ResourceFormat::RGBA32Float },
+        { kOutputNRDEmission,                   "gOutputNRDEmission",                   "Output primary surface emission", true /* optional */, ResourceFormat::RGBA32Float },
+        { kOutputNRDDiffuseReflectance,         "gOutputNRDDiffuseReflectance",         "Output primary surface diffuse reflectance", true /* optional */, ResourceFormat::RGBA16Float },
+        { kOutputNRDSpecularReflectance,        "gOutputNRDSpecularReflectance",        "Output primary surface specular reflectance", true /* optional */, ResourceFormat::RGBA16Float },
+    };
 }
 
 // Don't remove this. it's required for hot-reload to function properly
@@ -59,10 +109,9 @@ Dictionary ReSTIRGIPass::getScriptingDictionary()
 
 RenderPassReflection ReSTIRGIPass::reflect(const CompileData& compileData)
 {
-    // Define the required resources here
     RenderPassReflection reflector;
-    //reflector.addOutput("dst");
-    //reflector.addInput("src");
+    addRenderPassInputs(reflector, kInputChannels);
+    addRenderPassOutputs(reflector, kOutputChannels);
     return reflector;
 }
 
