@@ -32,6 +32,8 @@ namespace
 {
     const char kDesc[] = "Insert pass description here";    
 
+    const std::string kGeneratePathsFilename = "RenderPasses/ReSTIRGIPass/GeneratePaths.cs.slang";
+
     // Render pass inputs and outputs.
     const std::string kInputVBuffer = "vbuffer";
     const std::string kInputMotionVectors = "motionVectors";
@@ -96,8 +98,7 @@ extern "C" __declspec(dllexport) void getPasses(Falcor::RenderPassLibrary& lib)
 
 ReSTIRGIPass::SharedPtr ReSTIRGIPass::create(RenderContext* pRenderContext, const Dictionary& dict)
 {
-    SharedPtr pPass = SharedPtr(new ReSTIRGIPass);
-    return pPass;
+    return SharedPtr(new ReSTIRGIPass(dict));
 }
 
 std::string ReSTIRGIPass::getDesc() { return kDesc; }
@@ -105,6 +106,14 @@ std::string ReSTIRGIPass::getDesc() { return kDesc; }
 Dictionary ReSTIRGIPass::getScriptingDictionary()
 {
     return Dictionary();
+}
+
+ReSTIRGIPass::ReSTIRGIPass(const Dictionary& dict)
+{
+    // Create programs.
+    Program::DefineList defines;
+
+    mpGeneratePaths = ComputePass::create(kGeneratePathsFilename, "main", defines, false);
 }
 
 RenderPassReflection ReSTIRGIPass::reflect(const CompileData& compileData)
@@ -115,9 +124,32 @@ RenderPassReflection ReSTIRGIPass::reflect(const CompileData& compileData)
     return reflector;
 }
 
+void ReSTIRGIPass::compile(RenderContext* pContext, const CompileData& compileData)
+{
+}
+
+void ReSTIRGIPass::setScene(RenderContext* pRenderContext, const Scene::SharedPtr& pScene)
+{
+    mpScene = pScene;
+
+    if (mpScene)
+    {
+        if (is_set(pScene->getPrimitiveTypes(), PrimitiveTypeFlags::Custom)) logError("This render pass does not support custom primitives.");
+
+        // Prepare our programs for the scene.
+        Shader::DefineList defines = mpScene->getSceneDefines();
+
+        mpGeneratePaths->getProgram()->addDefines(defines);
+        mpGeneratePaths->setVars(nullptr);
+    }
+}
+
 void ReSTIRGIPass::execute(RenderContext* pRenderContext, const RenderData& renderData)
 {
     if (!beginFrame(pRenderContext, renderData)) return;
+
+    auto frameDim = renderData.getDefaultTextureDims();
+    mpGeneratePaths->execute(pRenderContext, uint3(frameDim, 1u));
 
     endFrame(pRenderContext, renderData);
 }

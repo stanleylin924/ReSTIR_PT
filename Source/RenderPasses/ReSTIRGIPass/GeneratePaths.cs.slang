@@ -25,40 +25,21 @@
  # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  **************************************************************************/
-#pragma once
-#include "Falcor.h"
 
-using namespace Falcor;
-
-class ReSTIRGIPass : public RenderPass
+struct PathGenerator
 {
-public:
-    using SharedPtr = std::shared_ptr<ReSTIRGIPass>;
-
-    /** Create a new render pass object.
-        \param[in] pRenderContext The render context.
-        \param[in] dict Dictionary of serialized parameters.
-        \return A new object, or an exception is thrown if creation failed.
-    */
-    static SharedPtr create(RenderContext* pRenderContext = nullptr, const Dictionary& dict = {});
-
-    virtual std::string getDesc() override;
-    virtual Dictionary getScriptingDictionary() override;
-    virtual RenderPassReflection reflect(const CompileData& compileData) override;
-    virtual void compile(RenderContext* pRenderContext, const CompileData& compileData) override;
-    virtual void execute(RenderContext* pRenderContext, const RenderData& renderData) override;
-    virtual void renderUI(Gui::Widgets& widget) override;
-    virtual void setScene(RenderContext* pRenderContext, const Scene::SharedPtr& pScene) override;
-    virtual bool onMouseEvent(const MouseEvent& mouseEvent) override { return false; }
-    virtual bool onKeyEvent(const KeyboardEvent& keyEvent) override { return false; }
-
-private:
-    ReSTIRGIPass(const Dictionary& dict);
-    bool beginFrame(RenderContext* pRenderContext, const RenderData& renderData);
-    void endFrame(RenderContext* pRenderContext, const RenderData& renderData);
-
-    // Internal state
-    Scene::SharedPtr                mpScene;                    ///< The current scene, or nullptr if no scene loaded.
-
-    ComputePass::SharedPtr          mpGeneratePaths;                ///< Fullscreen compute pass generating paths starting at primary hits.
+    void execute()
+    {
+    }
 };
+
+cbuffer CB
+{
+    PathGenerator gPathGenerator;
+}
+
+[numthreads(16, 16, 1)]
+void main()
+{
+    gPathGenerator.execute();
+}
