@@ -117,10 +117,24 @@ RenderPassReflection ReSTIRGIPass::reflect(const CompileData& compileData)
 
 void ReSTIRGIPass::execute(RenderContext* pRenderContext, const RenderData& renderData)
 {
-    // renderData holds the requested resources
-    // auto& pTexture = renderData["src"]->asTexture();
+    if (!beginFrame(pRenderContext, renderData)) return;
+
+    endFrame(pRenderContext, renderData);
 }
 
 void ReSTIRGIPass::renderUI(Gui::Widgets& widget)
+{
+}
+
+bool ReSTIRGIPass::beginFrame(RenderContext* pRenderContext, const RenderData& renderData)
+{
+    const auto& pOutputColor = renderData[kOutputColor]->asTexture();
+    assert(pOutputColor);
+    pRenderContext->clearUAV(pOutputColor->getUAV().get(), float4(0.f, 0.3f, 0.f, 0.f));
+
+    return true;
+}
+
+void ReSTIRGIPass::endFrame(RenderContext* pRenderContext, const RenderData& renderData)
 {
 }

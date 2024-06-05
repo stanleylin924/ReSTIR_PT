@@ -54,4 +54,6 @@ public:
 
 private:
     ReSTIRGIPass() = default;
+    bool beginFrame(RenderContext* pRenderContext, const RenderData& renderData);
+    void endFrame(RenderContext* pRenderContext, const RenderData& renderData);
 };
