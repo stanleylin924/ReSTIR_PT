@@ -1,0 +1,39 @@
+# Load FBX
+sceneBuilder.importScene('pink_room.fbx')
+
+# Add environment map
+#envMap = EnvMap('BlueSky.png')
+#envMap.intensity = 0.3
+#sceneBuilder.envMap = envMap
+
+# Add camera
+camera = Camera()
+camera.position = float3(-2.706775665283203, 0.85294109582901, -3.112438678741455)
+camera.target = float3(-2.347264528274536, 0.7383297681808472, -2.1863629817962648)
+camera.up = float3(0.038521841168403628, 0.9933950304985046, 0.1079813688993454)
+camera.focalLength = 21.0
+sceneBuilder.addCamera(camera)
+
+# Add directional light
+dirLight = DirectionalLight('Directional light')
+dirLight.intensity = float3(1.0, 1.0, 1.0)
+dirLight.direction = float3(0.3642265796661377, -0.5452651977539063, 0.7549999952316284)
+sceneBuilder.addLight(dirLight)
+
+# Add point light 1
+pointLight1 = PointLight('Point light 1')
+pointLight1.intensity = float3(1.0, 1.0, 1.0)
+pointLight1.position = float3(-4.645481586456299, 1.5427508354187012, -1.488459825515747)
+pointLight1.direction = float3(0.0, -1.0, 0.0)
+pointLight1.openingAngle = float(3.142)
+pointLight1.penumbraAngle = float(0.0)
+sceneBuilder.addLight(pointLight1)
+
+# Add point light 2
+pointLight2 = PointLight('Point light 2')
+pointLight2.intensity = float3(1.0, 1.0, 1.0)
+pointLight2.position = float3(-1.016136884689331, 1.4740270376205445, -1.4256235361099244)
+pointLight2.direction = float3(0.0, -1.0, 0.0)
+pointLight2.openingAngle = float(3.142)
+pointLight2.penumbraAngle = float(0.0)
+sceneBuilder.addLight(pointLight2)
