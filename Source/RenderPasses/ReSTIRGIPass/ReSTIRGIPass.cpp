@@ -142,10 +142,16 @@ void ReSTIRGIPass::compile(RenderContext* pContext, const CompileData& compileDa
 void ReSTIRGIPass::setScene(RenderContext* pRenderContext, const Scene::SharedPtr& pScene)
 {
     mpScene = pScene;
+    mParams.frameCount = 0;
 
     if (mpScene)
     {
         if (is_set(pScene->getPrimitiveTypes(), PrimitiveTypeFlags::Custom)) logError("This render pass does not support custom primitives.");
+
+        // check if the scene is dynamic
+        bool enableRobustSettingsByDefault = mpScene->hasAnimation() && mpScene->isAnimated();
+        mParams.rejectShiftBasedOnJacobian = enableRobustSettingsByDefault;
+        mStaticParams.temporalUpdateForDynamicScene = enableRobustSettingsByDefault;
 
         // Prepare our programs for the scene.
         Shader::DefineList defines = mpScene->getSceneDefines();
