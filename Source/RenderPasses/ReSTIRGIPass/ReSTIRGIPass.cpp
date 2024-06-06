@@ -96,6 +96,17 @@ extern "C" __declspec(dllexport) void getPasses(Falcor::RenderPassLibrary& lib)
     lib.registerClass("ReSTIRGIPass", kDesc, ReSTIRGIPass::create);
 }
 
+
+void ReSTIRGIPass::updateDict(const Dictionary& dict)
+{
+}
+
+void ReSTIRGIPass::initDict()
+{
+    Init();
+    mParams.frameCount = 0;
+}
+
 ReSTIRGIPass::SharedPtr ReSTIRGIPass::create(RenderContext* pRenderContext, const Dictionary& dict)
 {
     return SharedPtr(new ReSTIRGIPass(dict));

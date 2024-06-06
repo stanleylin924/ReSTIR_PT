@@ -27,6 +27,7 @@
  **************************************************************************/
 #pragma once
 #include "Falcor.h"
+#include "Params.slang"
 
 using namespace Falcor;
 
@@ -52,10 +53,22 @@ public:
     virtual bool onMouseEvent(const MouseEvent& mouseEvent) override { return false; }
     virtual bool onKeyEvent(const KeyboardEvent& keyEvent) override { return false; }
 
+    void updateDict(const Dictionary& dict) override;
+    void initDict() override;
+
 private:
     ReSTIRGIPass(const Dictionary& dict);
     bool beginFrame(RenderContext* pRenderContext, const RenderData& renderData);
     void endFrame(RenderContext* pRenderContext, const RenderData& renderData);
+
+
+    void Init()
+    {
+        mParams = RestirPathTracerParams();
+    }
+
+    // Configuration
+    RestirPathTracerParams          mParams;                    ///< Runtime path tracer parameters.
 
     // Internal state
     Scene::SharedPtr                mpScene;                    ///< The current scene, or nullptr if no scene loaded.
