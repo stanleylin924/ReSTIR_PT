@@ -25,14 +25,25 @@
  # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  **************************************************************************/
+import Scene.HitInfo;
 
 struct PathGenerator
 {
+    Texture2D<PackedHitInfo> vbuffer;               ///< Fullscreen V-buffer for the primary hits.
+
     RWTexture2D<float4> outputColor;                ///< Output color buffer if kSamplesPerPixel == 1.
 
     void execute(const uint2 pixel)
     {
-        outputColor[pixel] = float4(0.8f, 0.4f, 0.4f, 1.f);
+        const HitInfo hit = HitInfo(vbuffer[pixel]);
+        if (hit.isValid())
+        {
+            outputColor[pixel] = float4(0.0f, 0.4f, 0.4f, 1.f);
+        }
+        else
+        {
+            outputColor[pixel] = float4(0.8f, 0.4f, 0.4f, 1.f);
+        }
     }
 };
 
