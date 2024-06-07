@@ -41,5 +41,6 @@ def render_graph_ReSTIRGI():
 graph_ReSTIRGI = render_graph_ReSTIRGI()
 
 m.addGraph(graph_ReSTIRGI)
-m.loadScene('../Data/pink_room/pink_room.pyscene')
+m.loadScene('TestScenes/CornellBox2.pyscene')
+# m.loadScene('../Data/pink_room/pink_room.pyscene')
 # m.loadScene('VeachAjar/VeachAjarAnimated.pyscene')

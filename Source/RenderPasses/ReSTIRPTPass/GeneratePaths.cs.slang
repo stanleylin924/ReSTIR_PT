@@ -133,7 +133,7 @@ struct PathGenerator
         if (all(pixel < params.frameDim))
         {
             // Append paths to queues.
-            uint pathID = (pixel.y << 12) | pixel.x; // TODO: Helper struct for encoding/decoding path ID.
+            // uint pathID = (pixel.y << 12) | pixel.x; // TODO: Helper struct for encoding/decoding path ID.
 
             if (useGeneralQueue)
             {
@@ -145,7 +145,7 @@ struct PathGenerator
             }
 
             // Only one path per pixel needed
-            pathID = (pixel.y << 12) | pixel.x;
+            // pathID = (pixel.y << 12) | pixel.x;
         }
     }
 

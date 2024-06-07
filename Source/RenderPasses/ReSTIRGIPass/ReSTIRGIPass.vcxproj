@@ -37,7 +37,10 @@
   </ItemGroup>
   <ItemGroup>
     <ShaderSource Include="GeneratePaths.cs.slang" />
+    <ShaderSource Include="LoadShadingData.slang" />
     <ShaderSource Include="Params.slang" />
+    <ShaderSource Include="ReflectTypes.cs.slang" />
+    <ShaderSource Include="StaticParams.slang" />
   </ItemGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>

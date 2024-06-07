@@ -1,29 +1,5 @@
 /***************************************************************************
- # Copyright (c) 2015-21, NVIDIA CORPORATION. All rights reserved.
- #
- # Redistribution and use in source and binary forms, with or without
- # modification, are permitted provided that the following conditions
- # are met:
- #  * Redistributions of source code must retain the above copyright
- #    notice, this list of conditions and the following disclaimer.
- #  * Redistributions in binary form must reproduce the above copyright
- #    notice, this list of conditions and the following disclaimer in the
- #    documentation and/or other materials provided with the distribution.
- #  * Neither the name of NVIDIA CORPORATION nor the names of its
- #    contributors may be used to endorse or promote products derived
- #    from this software without specific prior written permission.
- #
- # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS "AS IS" AND ANY
- # EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- # IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
- # PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR
- # CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
- # EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- # PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
- # PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
- # OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ # Copyright (c) 2022, Daqi Lin.  All rights reserved.
  **************************************************************************/
 #pragma once
 #include "Falcor.h"
@@ -43,35 +19,55 @@
 
 using namespace Falcor;
 
+/** Path tracer that uses TraceRayInline() in DXR 1.1.
+*/
 class ReSTIRGIPass : public RenderPass
 {
 public:
     using SharedPtr = std::shared_ptr<ReSTIRGIPass>;
 
-    /** Create a new render pass object.
-        \param[in] pRenderContext The render context.
-        \param[in] dict Dictionary of serialized parameters.
-        \return A new object, or an exception is thrown if creation failed.
-    */
-    static SharedPtr create(RenderContext* pRenderContext = nullptr, const Dictionary& dict = {});
+    static SharedPtr create(RenderContext* pRenderContext, const Dictionary& dict);
 
     virtual std::string getDesc() override;
     virtual Dictionary getScriptingDictionary() override;
+    Dictionary getSpecializedScriptingDictionary();
     virtual RenderPassReflection reflect(const CompileData& compileData) override;
-    virtual void compile(RenderContext* pRenderContext, const CompileData& compileData) override;
+    virtual void compile(RenderContext* pContext, const CompileData& compileData) override;
+    virtual void setScene(RenderContext* pRenderContext, const Scene::SharedPtr& pScene) override;
     virtual void execute(RenderContext* pRenderContext, const RenderData& renderData) override;
     virtual void renderUI(Gui::Widgets& widget) override;
-    virtual void setScene(RenderContext* pRenderContext, const Scene::SharedPtr& pScene) override;
-    virtual bool onMouseEvent(const MouseEvent& mouseEvent) override { return false; }
+    virtual bool onMouseEvent(const MouseEvent& mouseEvent) override;
     virtual bool onKeyEvent(const KeyboardEvent& keyEvent) override { return false; }
+
+    const PixelStats::SharedPtr& getPixelStats() const { return mpPixelStats; }
 
     void updateDict(const Dictionary& dict) override;
     void initDict() override;
 
+    static void registerBindings(pybind11::module& m);
+
 private:
     ReSTIRGIPass(const Dictionary& dict);
+    bool parseDictionary(const Dictionary& dict);
+    void validateOptions();
+    void updatePrograms();
+    void prepareResources(RenderContext* pRenderContext, const RenderData& renderData);
+    void setNRDData(const ShaderVar& var, const RenderData& renderData) const;
+    void preparePathTracer(const RenderData& renderData);
+    void resetLighting();
+    void prepareMaterials(RenderContext* pRenderContext);
+    bool prepareLighting(RenderContext* pRenderContext);
+    void setShaderData(const ShaderVar& var, const RenderData& renderData, bool isPathTracer, bool isPathGenerator) const;
+    bool renderRenderingUI(Gui::Widgets& widget);
+    bool renderDebugUI(Gui::Widgets& widget);
+    bool renderStatsUI(Gui::Widgets& widget);
     bool beginFrame(RenderContext* pRenderContext, const RenderData& renderData);
     void endFrame(RenderContext* pRenderContext, const RenderData& renderData);
+    void generatePaths(RenderContext* pRenderContext, const RenderData& renderData, int sampleId = 0);
+    void tracePass(RenderContext* pRenderContext, const RenderData& renderData, const ComputePass::SharedPtr& pass, const std::string& passName, int sampleId);
+    void PathReusePass(RenderContext* pRenderContext, uint32_t restir_i, const RenderData& renderData, bool temporalReuse = false, int spatialRoundId = 0, bool isLastRound = false);
+    void PathRetracePass(RenderContext* pRenderContext, uint32_t restir_i, const RenderData& renderData, bool temporalReuse = false, int spatialRoundId = 0);
+    Texture::SharedPtr createNeighborOffsetTexture(uint32_t sampleCount);
 
     /** Static configuration. Changing any of these options require shader recompilation.
     */
@@ -129,14 +125,101 @@ private:
     {
         mStaticParams = StaticParams();
         mParams = RestirPathTracerParams();
+        mEnableTemporalReuse = true;
+        mEnableSpatialReuse = true;
+        mSpatialReusePattern = SpatialReusePattern::Default;
+        mPathReusePattern = PathReusePattern::NRooksShift;
+        mSmallWindowRestirWindowRadius = 2;
+        mSpatialNeighborCount = 3;
+        mSpatialReuseRadius = 20.f;
+        mNumSpatialRounds = 1;
+        mEnableTemporalReprojection = false;
+        mUseMaxHistory = true;
+        mUseDirectLighting = true;
+        mTemporalHistoryLength = 20;
+        mNoResamplingForTemporalReuse = false;
     }
 
     // Configuration
     RestirPathTracerParams          mParams;                    ///< Runtime path tracer parameters.
     StaticParams                    mStaticParams;              ///< Static parameters. These are set as compile-time constants in the shaders.
+    LightBVHSampler::Options        mLightBVHOptions;           ///< Current options for the light BVH sampler.
 
     // Internal state
     Scene::SharedPtr                mpScene;                    ///< The current scene, or nullptr if no scene loaded.
+    SampleGenerator::SharedPtr      mpSampleGenerator;          ///< GPU pseudo-random sample generator.
+    EnvMapSampler::SharedPtr        mpEnvMapSampler;            ///< Environment map sampler or nullptr if not used.
+    EmissiveLightSampler::SharedPtr mpEmissiveSampler;          ///< Emissive light sampler or nullptr if not used.
+    PixelStats::SharedPtr           mpPixelStats;               ///< Utility class for collecting pixel stats.
+    PixelDebug::SharedPtr           mpPixelDebug;               ///< Utility class for pixel debugging (print in shaders).
+    ParameterBlock::SharedPtr       mpPathTracerBlock;          ///< Parameter block for the path tracer.
+
+    // internal below
+    bool                            mRecompile = false;         ///< Set to true when program specialization has changed.
+    bool                            mVarsChanged = true;        ///< This is set to true whenever the program vars have changed and resources need to be rebound.
+    bool                            mOptionsChanged = false;    ///< True if the config has changed since last frame.
+    bool                            mGBufferAdjustShadingNormals = false; ///< True if GBuffer/VBuffer has adjusted shading normals enabled.
+    bool                            mOutputTime = false;        ///< True if time data should be generated as output.
+    bool                            mOutputNRDData = false;     ///< True if NRD diffuse/specular data should be generated as outputs.
+    bool                            mEnableRayStats = false;      ///< Set to true when the stats tab in the UI is open. This may negatively affect performance.
+
+    uint64_t                        mAccumulatedRayCount = 0;
+    uint64_t                        mAccumulatedClosestHitRayCount = 0;
+    uint64_t                        mAccumulatedShadowRayCount = 0;
+
+    // params below
+    bool                            mEnableTemporalReuse = true;
+    bool                            mEnableSpatialReuse = true;
+    SpatialReusePattern             mSpatialReusePattern = SpatialReusePattern::Default;
+    PathReusePattern                mPathReusePattern = PathReusePattern::NRooksShift;
+    uint32_t                        mSmallWindowRestirWindowRadius = 2;
+    int                             mSpatialNeighborCount = 3;
+    float                           mSpatialReuseRadius = 20.f;
+    int                             mNumSpatialRounds = 1;
+
+    bool                            mEnableTemporalReprojection = true;
+    bool                            mFeatureBasedRejection = true;
+
+    bool                            mUseMaxHistory = true;
+
+    int                             mReservoirFrameCount = 0; // internal
+
+    bool                            mUseDirectLighting = true;
+
+    int                             mTemporalHistoryLength = 20;
+    bool                            mNoResamplingForTemporalReuse = false;
+    int                             mSeedOffset = 0;
+
+
+    bool mResetRenderPassFlags = false;
+
+    ComputePass::SharedPtr          mpSpatialReusePass;      ///< Merges reservoirs.
+    ComputePass::SharedPtr          mpTemporalReusePass;      ///< Merges reservoirs.
+    ComputePass::SharedPtr          mpComputePathReuseMISWeightsPass;
+
+    ComputePass::SharedPtr          mpSpatialPathRetracePass;
+    ComputePass::SharedPtr          mpTemporalPathRetracePass;
 
     ComputePass::SharedPtr          mpGeneratePaths;                ///< Fullscreen compute pass generating paths starting at primary hits.
+    ComputePass::SharedPtr          mpTracePass;                    ///< Main tracing pass.
+
+    ComputePass::SharedPtr          mpReflectTypes;             ///< Helper for reflecting structured buffer types.
+
+    GpuFence::SharedPtr             mpReadbackFence;            ///< GPU fence for synchronizing stats readback.
+
+    // Data
+    Buffer::SharedPtr               mpCounters;                 ///< Atomic counters (32-bit).
+    Buffer::SharedPtr               mpCountersReadback;         ///< Readback buffer for the counters for stats gathering.
+
+    Buffer::SharedPtr               mpOutputReservoirs;               ///< Output paths from the path sampling stage.
+    // enable multiple temporal reservoirs for spp > 1 (multiple ReSTIR chains)
+    std::vector<Buffer::SharedPtr>               mpTemporalReservoirs;               ///< Output paths from the path sampling stage.
+    Buffer::SharedPtr               mReconnectionDataBuffer;
+    Buffer::SharedPtr               mPathReuseMISWeightBuffer;
+
+    Texture::SharedPtr              mpTemporalVBuffer;
+
+    Texture::SharedPtr              mpNeighborOffsets;
+
+    Buffer::SharedPtr               mNRooksPatternBuffer;
 };
