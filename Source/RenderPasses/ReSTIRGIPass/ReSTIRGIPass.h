@@ -105,7 +105,7 @@ private:
         ReSTIRMISKind    spatialMisKind = ReSTIRMISKind::Pairwise;
         ReSTIRMISKind    temporalMisKind = ReSTIRMISKind::Talbot;
 
-        ShiftMapping    shiftStrategy = ShiftMapping::Hybrid;
+        ShiftMapping    shiftStrategy = ShiftMapping::Reconnection;
         bool            temporalUpdateForDynamicScene = false;
 
         PathSamplingMode pathSamplingMode = PathSamplingMode::ReSTIR;
@@ -115,7 +115,7 @@ private:
         bool            rcDataOfflineMode = false;
 
         // Denoising parameters
-        bool        useNRDDemodulation = true;                  ///< Global switch for NRD demodulation.
+        bool        useNRDDemodulation = false;                  ///< Global switch for NRD demodulation.
 
         Program::DefineList getDefines(const ReSTIRGIPass& owner) const;
     };

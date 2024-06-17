@@ -36,11 +36,23 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
+    <ShaderSource Include="ComputePathReuseMISWeights.cs.slang" />
     <ShaderSource Include="GeneratePaths.cs.slang" />
     <ShaderSource Include="LoadShadingData.slang" />
+    <ShaderSource Include="NRDHelpers.slang" />
     <ShaderSource Include="Params.slang" />
+    <ShaderSource Include="PathBuilder.slang" />
+    <ShaderSource Include="PathReservoir.slang" />
+    <ShaderSource Include="PathState.slang" />
+    <ShaderSource Include="PathTracer.slang" />
     <ShaderSource Include="ReflectTypes.cs.slang" />
+    <ShaderSource Include="Shift.slang" />
+    <ShaderSource Include="SpatialPathRetrace.cs.slang" />
+    <ShaderSource Include="SpatialReuse.cs.slang" />
     <ShaderSource Include="StaticParams.slang" />
+    <ShaderSource Include="TemporalPathRetrace.cs.slang" />
+    <ShaderSource Include="TemporalReuse.cs.slang" />
+    <ShaderSource Include="TracePass.cs.slang" />
   </ItemGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>

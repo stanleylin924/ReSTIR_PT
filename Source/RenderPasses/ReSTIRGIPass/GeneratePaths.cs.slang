@@ -33,10 +33,10 @@ import Rendering.Materials.StandardMaterial;
 import Rendering.Materials.ClothMaterial;
 import Rendering.Materials.HairMaterial;
 import LoadShadingData;
-// import PathTracer;
-// import PathState;
+import PathTracer;
+import PathState;
 import Params;
-// import PathReservoir;
+import PathReservoir;
 
 // Shared memory variables.
 // TODO: Can we declare these inside PathGenerator?
