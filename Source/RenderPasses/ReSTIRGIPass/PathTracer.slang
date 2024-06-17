@@ -184,9 +184,6 @@ struct PathTracer
     */
     void generatePath(const uint pathID, out PathState path)
     {
-        setupPathLogging(path);
-        // print("generatePath()++", 0);
-
         path = {};
         path.setActive();
         path.id = pathID;
@@ -231,16 +228,11 @@ struct PathTracer
 
         path.pathBuilder.init(path.sg);
         path.pathReservoir.init();
-
-        // print("generatePath()--", 0);
     }
 
     // generate random replay path
     void generateRandomReplayPath(out PathState path, HitInfo hit, Ray ray, uint randomSeed, int randomReplayLength, bool isLastVertexNEE, bool isRcVertexEscapedVertex)
     {
-        setupPathLogging(path);
-        print("generateRandomReplayPath()++", 0);
-
         path = {};
         path.L = 0.f;
         path.setActive();
@@ -262,8 +254,6 @@ struct PathTracer
         path.randomReplayLength = randomReplayLength;
 
         path.pathReservoir.init();
-
-        print("generateRandomReplayPath()--", 0);
     }
 
 
@@ -973,9 +963,6 @@ struct PathTracer
     */
     void handleHit(inout PathState path)
     {
-        setupPathLogging(path);
-        // print("handleHit()++", 0);
-
         // Upon hit:
         // - Load vertex/material data
         // - Compute volume absorption
@@ -1481,8 +1468,6 @@ struct PathTracer
         {
             path.terminate();
         }
-
-        // print("handleHit()--", 0);
     }
 
     /** Handle the case when a scatter ray misses the scene.
@@ -1490,9 +1475,6 @@ struct PathTracer
     */
     void handleMiss(inout PathState path)
     {
-        setupPathLogging(path);
-        // print("handleMiss()++", 0);
-
         // Upon miss:
         // - Compute MIS weight if previous path vertex sampled a light
         // - Evaluate environment map
@@ -1590,8 +1572,6 @@ struct PathTracer
         }
 
         path.terminate();
-
-        // print("handleMiss()--", 0);
     }
 
     // function to trace a path using random number replay
@@ -1714,8 +1694,6 @@ struct PathTracer
     void traceRandomReplayGetDenoiserData(HitInfo hit, ShadingData sd, Ray ray, ReSTIRPathFlags pathFlags,
         uint initRandomSeed, inout float hitDist, inout NRDPathType pathType, inout float3 sampleReflectance)
     {
-        print("traceRandomReplayGetDenoiserData()++", 0);
-
         PathState path;
         bool isRcVertexEscapedVertex = pathFlags.pathLength() + 1 == pathFlags.rcVertexLength();
         generateRandomReplayPath(path, hit, ray, initRandomSeed, pathFlags.pathLength(), pathFlags.lastVertexNEE(), isRcVertexEscapedVertex);
@@ -1747,13 +1725,10 @@ struct PathTracer
 
             return;
         }
-        print("traceRandomReplayGetDenoiserData()--", 0);
     }
 
     void traceTemporalUpdate(ShadingData rcPrevSd, inout PathReservoir tempPathReservoir)
     {
-        print("traceTemporalUpdate()++", 0);
-
         int rcVertexLength = tempPathReservoir.pathFlags.rcVertexLength();
         ShadingData rcVertexSd = loadShadingDataWithPrevVertexPosition(tempPathReservoir.rcVertexHit.getHitInfo(), rcPrevSd.posW, false);
         PathState path;
@@ -1863,28 +1838,19 @@ struct PathTracer
             tempPathReservoir.lightPdf = path.pathReservoir.lightPdf;
             tempPathReservoir.pathFlags.insertLightType(path.pathReservoir.pathFlags.lightType());
         }
-        print("traceTemporalUpdate()--", 0);
     }
 
     /** Finalize the path state before writing to the output buffer.
     */
     void finalize(inout PathState path)
     {
-        setupPathLogging(path);
-        // print("finalize()++", 0);
-
         path.pathBuilder.finalize(path.pathReservoir);
-
-        // print("finalize()--", 0);
     }
 
     /** Write path contribution to output buffer.
     */
     void writeOutput(PathState path, inout PathReservoir giReservoir, int sampleId)
     {
-        setupPathLogging(path);
-        // print("writeOutput()++", 0);
-
         // Log path length.
         logPathLength(getTerminatedPathLength(path));
 
@@ -1898,7 +1864,6 @@ struct PathTracer
         {
             float3 L = 0.f;
 
-            // print("LDeltaDirect:", path.LDeltaDirect);
             if (useDirectLighting) L += path.LDeltaDirect;
 
             if (PathSamplingMode(kPathSamplingMode) == PathSamplingMode::PathTracing)
@@ -2080,7 +2045,6 @@ struct PathTracer
             }
         }
 
-        // print("writeOutput()--", 0);
     }
 
 };
