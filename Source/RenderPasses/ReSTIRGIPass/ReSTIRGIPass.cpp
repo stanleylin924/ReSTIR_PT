@@ -577,8 +577,8 @@ Dictionary ReSTIRGIPass::getScriptingDictionary()
     d[kTemporalHistoryLength] = mTemporalHistoryLength;
     d[kUseMaxHistory] = mUseMaxHistory;
     d[kSeedOffset] = mSeedOffset;
-    d[kEnableTemporalReuse] = mEnableSpatialReuse;
-    d[kEnableSpatialReuse] = mEnableTemporalReuse;
+    d[kEnableTemporalReuse] = mEnableTemporalReuse;
+    d[kEnableSpatialReuse] = mEnableSpatialReuse;
     d[kNumSpatialRounds] = mNumSpatialRounds;
     d[kPathSamplingMode] = mStaticParams.pathSamplingMode;
     d[kLocalStrategyType] = mParams.localStrategyType;
