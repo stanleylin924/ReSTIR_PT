@@ -1059,9 +1059,6 @@ void ReSTIRGIPass::prepareResources(RenderContext* pRenderContext, const RenderD
 
     if (mStaticParams.pathSamplingMode != PathSamplingMode::PathTracing)
     {
-
-        mReconnectionDataBuffer = nullptr;
-
         uint32_t baseReservoirSize = 88;
         uint32_t pathTreeReservoirSize = 128;
 
@@ -1464,7 +1461,6 @@ void ReSTIRGIPass::PathReusePass(RenderContext* pRenderContext, uint32_t restir_
     var["outputReservoirs"] = spatialRoundId % 2 == 1 ? mpTemporalReservoirs[restir_i] : mpOutputReservoirs;
 
     var["temporalReservoirs"] = spatialRoundId % 2 == 0 ? mpTemporalReservoirs[restir_i] : mpOutputReservoirs;
-    var["reconnectionDataBuffer"] = mReconnectionDataBuffer;
 
     var["gNumSpatialRounds"] = mNumSpatialRounds;
 

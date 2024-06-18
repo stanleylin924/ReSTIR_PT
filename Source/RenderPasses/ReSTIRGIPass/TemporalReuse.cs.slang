@@ -31,7 +31,6 @@ struct PathReusePass
     RWTexture2D<float4> outputColor;                      ///< Output resolved color.
     RWStructuredBuffer<PathReservoir> outputReservoirs;    // reservoir for next pass
     RWStructuredBuffer<PathReservoir> temporalReservoirs;  // reservoir from previous frame
-    StructuredBuffer<PixelReconnectionData> reconnectionDataBuffer;
 
     Texture2D<float4> directLighting;                  
     bool useDirectLighting;
