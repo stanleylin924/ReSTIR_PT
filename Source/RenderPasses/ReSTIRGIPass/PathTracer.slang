@@ -17,11 +17,6 @@ import Rendering.Materials.InteriorListHelpers;
 import Rendering.Volumes.HomogeneousVolumeSampler;
 import Rendering.Volumes.PhaseFunction;
 import Rendering.Utils.PixelStats;
-import RenderPasses.Shared.Denoising.NRDBuffers;
-import RenderPasses.Shared.Denoising.NRDData;
-import RenderPasses.Shared.Denoising.NRDHelpers;
-import RenderPasses.Shared.Denoising.NRDConstants;
-import NRDHelpers;
 import Utils.Color.ColorHelpers;
 import Utils.Geometry.GeometryHelpers;
 import Utils.Debug.PixelDebug;
@@ -47,11 +42,6 @@ struct PathTracer
     EmissiveLightSampler emissiveSampler;           ///< Emissive light sampler. Only valid when kUseEmissiveLights == true.
 
     Texture2D<PackedHitInfo> vbuffer;               ///< Fullscreen V-buffer for the primary hits.
-
-    NRDBuffers outputNRD;                           ///< Output NRD data.
-    RWTexture2D<float4> outputNRDDiffuseRadianceHitDist;    ///< Output resolved diffuse color in .rgb and hit distance in .a for NRD. Only valid if kOutputNRDData == true.
-    RWTexture2D<float4> outputNRDSpecularRadianceHitDist;   ///< Output resolved specular color in .rgb and hit distance in .a for NRD. Only valid if kOutputNRDData == true.
-    RWTexture2D<float4> outputNRDResidualRadianceHitDist;   ///< Output resolved residual color in .rgb and hit distance in .a for NRD. Only valid if kOutputNRDData == true.
 
     RWTexture2D<float4> outputColor;                ///< Output color buffer if kSamplesPerPixel == 1.
     RWTexture2D<float4> outputDebug;                ///< Output debug data. Valid if OUTPUT_DEBUG is nonzero.
@@ -193,7 +183,7 @@ struct PathTracer
 
         path.LDeltaDirect = float3(0.f);
         path.enableRandomReplay = false;
-        path.useHybridShift = ShiftMapping(kShiftStrategy) == ShiftMapping::Hybrid;
+        path.useHybridShift = false;
         path.isLastVertexClassifiedAsRough = true;
         path.isReplayForHybridShift = false;
 
@@ -219,43 +209,9 @@ struct PathTracer
         uint maxSpp = itersPerShaderPass > 0 ? itersPerShaderPass : kMaxSamplesPerPixel;
         path.sg = SampleGenerator(pixel, (itersPerShaderPass + 1 + gNumSpatialRounds) * params.seed + path.getSampleIdx());
 
-        if (kOutputNRDData)
-        {
-            path.hitDist = 0;
-            path.rcPrevVertexWo = 0;
-            path.sharedScatterDir = 0;
-        }
-
         path.pathBuilder.init(path.sg);
         path.pathReservoir.init();
     }
-
-    // generate random replay path
-    void generateRandomReplayPath(out PathState path, HitInfo hit, Ray ray, uint randomSeed, int randomReplayLength, bool isLastVertexNEE, bool isRcVertexEscapedVertex)
-    {
-        path = {};
-        path.L = 0.f;
-        path.setActive();
-        path.thp = float3(1.f);
-        path.prefixThp = float3(1.f);
-        path.rcVertexPathTreeIrradiance = float3(0.f);
-
-        path.enableRandomReplay = true;
-        path.useHybridShift = ShiftMapping(kShiftStrategy) == ShiftMapping::Hybrid;
-        path.setHit(hit);
-
-        path.origin = ray.origin;
-        path.dir = ray.dir;
-
-        path.sg = SampleGenerator(randomSeed); 
-
-        path.randomReplayIsNEE = isLastVertexNEE && !isRcVertexEscapedVertex;
-        path.randomReplayIsEscaped = !isLastVertexNEE && !isRcVertexEscapedVertex;
-        path.randomReplayLength = randomReplayLength;
-
-        path.pathReservoir.init();
-    }
-
 
     /** Set up path for logging and debugging.
         \param[in] path Path state.
@@ -308,13 +264,6 @@ struct PathTracer
 
         float pdfAll = result.pdf;
         if (kSeparatePathBSDF) result.pdf = result.pdfSingle;
-
-        // Ignore valid on purpose for now.
-        if (kOutputNRDData && path.length == 0)
-        {
-            path.setDiffusePrimaryHit(result.isLobe(LobeType::Diffuse));
-            path.setSpecularPrimaryHit(result.isLobe(LobeType::Specular));
-        }
 
         if (valid)
         {
@@ -838,7 +787,7 @@ struct PathTracer
         else
         {
             path.clearHit();
-            path.sceneLength = float16_t(kNRDInvalidPathLength);
+            path.sceneLength = float16_t(HLF_MAX);
         }
     }
 
@@ -1077,18 +1026,8 @@ struct PathTracer
             // daqi: here we are adding the path terminated with an escaped vertex
             if ((!path.enableRandomReplay || terminateRandomReplayForEscape) && PathSamplingMode(kPathSamplingMode) != PathSamplingMode::PathTracing)
             {
-#if BPR
-                if (path.length - 1 > path.pathBuilder.rcVertexLength)
-                {
-                    path.rcVertexPathTreeIrradiance += path.thp * sd.emissive * misWeight;
-                }
-                bool selectedCurrentPath = path.pathBuilder.addEscapeVertex(params, max(0, path.length - 1), path.dir, Lr, 
-                    path.length - 1 == path.pathBuilder.rcVertexLength ? path.thp * sd.emissive * misWeight : path.rcVertexPathTreeIrradiance,
-                    path.useHybridShift, path.russianRoulettePdf, misWeight, lightPdf, (uint)LightSampleType::Emissive, path.pathReservoir, path.enableRandomReplay);
-#else
                 bool selectedCurrentPath = path.pathBuilder.addEscapeVertex(params, max(0, path.length - 1), path.dir, Lr, path.thp * sd.emissive * misWeight, 
                     path.useHybridShift, path.russianRoulettePdf, misWeight, lightPdf, (uint)LightSampleType::Emissive, path.pathReservoir, path.enableRandomReplay);
-#endif
 
                 // daqi: if current escaped vertex has path.length >= 2, then it can be used as a rcVertex
                 if (selectedCurrentPath&& path.useHybridShift&& path.length >= 2 && path.length < path.pathBuilder.rcVertexLength)
@@ -1333,19 +1272,8 @@ struct PathTracer
                                 {
                                     weight = 1.f;
                                 }
-#if BPR
-                                if (!is_rcVertex)
-                                {
-                                    path.rcVertexPathTreeIrradiance += weight * ls.Li * path.thp;
-                                }
-
-                                bool selected = path.pathBuilder.addNeeVertex(params, path.length, ls.dir, Lr, 
-                                    is_rcVertex ? weight * ls.Li * path.thp : path.rcVertexPathTreeIrradiance, path.useHybridShift,
-                                    path.russianRoulettePdf, misWeight, ls.pdf, ls.lightType, path.pathReservoir, path.enableRandomReplay);
-#else
                                 bool selected = path.pathBuilder.addNeeVertex(params, path.length, ls.dir, Lr, weight * ls.Li * path.thp, path.useHybridShift,
                                     path.russianRoulettePdf, misWeight, ls.pdf, ls.lightType, path.pathReservoir, path.enableRandomReplay);
-#endif
                             }
                         }
                     }
@@ -1431,27 +1359,12 @@ struct PathTracer
         }
 
         // daqi: save the incoming direction on rcVertex
-        if (is_rcVertex && valid && (int(path.length > 1) == 0 || !BPR))
+        if (is_rcVertex && valid && (int(path.length > 1) == 0 || true))
         {
             path.pathBuilder.rcVertexWi[0] = path.dir;
         }
 
         path.isLastVertexClassifiedAsRough = isCurrentVertexClassifiedAsRough;
-
-        if (kOutputNRDData && !path.enableRandomReplay)
-        {
-            const uint2 pixel = path.getPixel();
-
-            if (gSppId == 0)
-            {
-                setNRDPrimaryHitEmission(outputNRD, kUseNRDDemodulation, path, pixel, isPrimaryHit, attenuatedEmission);
-                setNRDPrimaryHitReflectance(outputNRD, kUseNRDDemodulation, path, pixel, isPrimaryHit, sd);
-            }
-
-            setNRDSampleHitDist(path); // this will be overriden if ReSTIR is done
-            setNRDSampleEmission(kUseNRDDemodulation, path, isPrimaryHit, attenuatedEmission); // this should be the same for every sample (unless in volume rendering)
-            setNRDSampleReflectance(kUseNRDDemodulation, path, isPrimaryHit, sd); // this will be overriden in ReSTIR mode
-        }
 
         if (!path.isActive()) return;
 
@@ -1530,18 +1443,9 @@ struct PathTracer
             // daqi: here we are adding the path terminated with an escaped vertex
             if ((!path.enableRandomReplay || terminateRandomReplayForEscape) && PathSamplingMode(kPathSamplingMode) != PathSamplingMode::PathTracing)
             {
-#if BPR
-                if (path.length > path.pathBuilder.rcVertexLength)
-                {
-                    path.rcVertexPathTreeIrradiance += path.thp * Le * misWeight;
-                }
-                bool selectedCurrentPath = path.pathBuilder.addEscapeVertex(params, path.length, path.dir, Lr, 
-                    path.length == path.pathBuilder.rcVertexLength ? path.thp * Le * misWeight : path.rcVertexPathTreeIrradiance,
-                    path.useHybridShift, path.russianRoulettePdf, misWeight, lightPdf, (uint)LightSampleType::EnvMap, path.pathReservoir, path.enableRandomReplay);
-#else
                 bool selectedCurrentPath = path.pathBuilder.addEscapeVertex(params, path.length, path.dir, Lr, path.thp * Le * misWeight, 
                     path.useHybridShift, path.russianRoulettePdf, misWeight, lightPdf, (uint)LightSampleType::EnvMap, path.pathReservoir, path.enableRandomReplay);
-#endif
+
                 // daqi: if current escaped vertex has path.length >= 2, then it can be used as a rcVertex
                 if (selectedCurrentPath && path.useHybridShift && path.length >= 1 && path.length + 1 < path.pathBuilder.rcVertexLength)
                 {
@@ -1566,278 +1470,7 @@ struct PathTracer
             }
         }
 
-        if (kOutputNRDData)
-        {
-            setNRDSampleHitDist(path); // this will be overriden in ReSTIR mode
-        }
-
         path.terminate();
-    }
-
-    // function to trace a path using random number replay
-    float3 traceRandomReplayPath(HitInfo hit, ShadingData sd, ShadingData srcSd, Ray ray, inout PathReservoir tempPathReservoir)
-    {
-        PathState path;
-        generateRandomReplayPath(path, hit, ray, tempPathReservoir.initRandomSeed, tempPathReservoir.pathFlags.pathLength(), tempPathReservoir.pathFlags.lastVertexNEE(), false);
-        path.isReplayForHybridShift = false;
-
-        path.origin = sd.computeNewRayOrigin();
-
-        // set up the two scatter directions (or half vectors) for reuse
-
-        generateReplayPrimaryScatterRay(path, sd);
-
-        if (path.isActive()) nextVertex(path);
-
-        float randomReplayProb = 1.f;
-
-        while (path.isActive() && path.isHit())
-        {
-            // Handle surface hit 
-            if (path.isActive())
-            {
-                if (path.isHit())
-                {
-                    handleHit(path);
-                }
-            }
-
-            // Move to the next path vertex.
-            if (path.isActive() && path.isHit()) nextVertex(path);
-        }
-
-        // Handle the miss and terminate path.
-        if (path.isActive())
-        {
-            handleMiss(path);
-        }
-
-        // we should copy out the pathReservoir, as it contains information like rcVertex which will be needed for MIS
-        tempPathReservoir = path.pathReservoir;
-
-        return path.L;
-    }
-
-    float3 traceRandomReplayPathHybridSimple(HitInfo hit, ShadingData sd, Ray ray, ReSTIRPathFlags pathFlags,
-        uint initRandomSeed, inout HitInfo rcPrevHit, inout float3 rcPrevHitWo)
-    {
-        PathState path;
-        bool isRcVertexEscapedVertex = pathFlags.pathLength() + 1 == pathFlags.rcVertexLength();
-        generateRandomReplayPath(path, hit, ray, initRandomSeed, pathFlags.pathLength(), pathFlags.lastVertexNEE(), isRcVertexEscapedVertex);
-        path.useHybridShift = true;
-        path.isReplayForHybridShift = true;
-        path.pathBuilder.rcVertexLength = pathFlags.rcVertexLength();
-
-        setDataBeforeTermination(rcPrevHit, rcPrevHitWo);
-
-        path.origin = sd.computeNewRayOrigin();
-
-        // this is also applicable for random number reuse
-        path.pathBuilder.pathFlags.flags = 0;
-        path.pathBuilder.pathFlags.transferSpecularBounceInformation(pathFlags);
-
-        // set up the two scatter directions (or half vectors) for reuse
-
-        generateReplayPrimaryScatterRay(path, sd);
-        if (path.isActive()) nextVertex(path);
-        else
-        {
-            return 0.f;
-        }
-
-        while (path.isActive() && path.isHit())
-        {
-            // Volume scattering is ignored
-            // Handle surface hit 
-            if (path.isActive())
-            {
-                if (path.isHit())
-                {
-                    handleHit(path);
-                }
-            }
-
-            // Move to the next path vertex.
-            if (path.isActive() && path.isHit()) nextVertex(path);
-        }
-
-        // Handle the miss and terminate path.
-        if (path.isActive())
-        {
-            handleMiss(path);
-
-            // non-invertible: path length doesn't match
-            if (path.length != pathFlags.pathLength())
-            {
-                return 0.f;
-            }
-        }
-
-        rcPrevHit = HitInfo();
-
-        float3 L = 1.f;
-
-        if (pathFlags.rcVertexLength() <= pathFlags.pathLength() || isRcVertexEscapedVertex)
-        {
-            rcPrevHit = path.rcPrevVertexHit;
-            rcPrevHitWo = path.rcPrevVertexWo;
-            L = path.getCurrentThp();
-        }
-        else // this branch is the case where rcVertex does not exist (or infinitely far)
-        {
-            L = path.L;
-        }
-
-        return L;
-    }
-
-    void traceRandomReplayGetDenoiserData(HitInfo hit, ShadingData sd, Ray ray, ReSTIRPathFlags pathFlags,
-        uint initRandomSeed, inout float hitDist, inout NRDPathType pathType, inout float3 sampleReflectance)
-    {
-        PathState path;
-        bool isRcVertexEscapedVertex = pathFlags.pathLength() + 1 == pathFlags.rcVertexLength();
-        generateRandomReplayPath(path, hit, ray, initRandomSeed, pathFlags.pathLength(), pathFlags.lastVertexNEE(), isRcVertexEscapedVertex);
-        path.useHybridShift = true;
-        path.isReplayForHybridShift = true;
-        path.pathBuilder.rcVertexLength = pathFlags.rcVertexLength();
-
-        if (path.pathBuilder.rcVertexLength > 1)
-        {
-            path.origin = sd.computeNewRayOrigin();
-
-            // this is also applicable for random number reuse
-            path.pathBuilder.pathFlags.flags = 0;
-
-            generateReplayPrimaryScatterRay(path, sd);
-            if (path.isActive()) nextVertex(path);
-            else
-            {
-                // this shouldn't happen! 
-                return;
-            }
-
-            hitDist = float(path.sceneLength);
-            if (path.isDiffusePrimaryHit()) pathType = NRDPathType::Diffuse;
-            else if (path.isSpecularPrimaryHit()) pathType = NRDPathType::Specular;
-            else pathType = NRDPathType::Residual;
-
-            sampleReflectance = computeSampleReflectance(kUseNRDDemodulation, path.isDiffusePrimaryHit(), path.isSpecularPrimaryHit(), sd);
-
-            return;
-        }
-    }
-
-    void traceTemporalUpdate(ShadingData rcPrevSd, inout PathReservoir tempPathReservoir)
-    {
-        int rcVertexLength = tempPathReservoir.pathFlags.rcVertexLength();
-        ShadingData rcVertexSd = loadShadingDataWithPrevVertexPosition(tempPathReservoir.rcVertexHit.getHitInfo(), rcPrevSd.posW, false);
-        PathState path;
-
-        //rcVertex is NEE
-        if (tempPathReservoir.pathFlags.lastVertexNEE() && tempPathReservoir.pathFlags.pathLength() == rcVertexLength)
-        {
-            path = {};
-            path.length = rcVertexLength;
-            // call light sampling function
-            LightSample ls;
-            bool validSample = true;
-            {
-                uint lobes = getBSDFLobes(rcVertexSd);
-                // Setup path vertex.
-                PathVertex vertex = PathVertex.create(/*path.getVertexIndex()*/ path.length + 1, rcVertexSd.posW, rcVertexSd.N, rcVertexSd.faceN);
-
-                // Determine if upper/lower hemispheres need to be sampled.
-                bool sampleUpperHemisphere = ((lobes & (uint)LobeType::NonDeltaReflection) != 0);
-                bool sampleLowerHemisphere = ((lobes & (uint)LobeType::NonDeltaTransmission) != 0);
-
-                path.sg = SampleGenerator(tempPathReservoir.rcRandomSeed);
-                validSample = generateLightSample(vertex, sampleUpperHemisphere, sampleLowerHemisphere, path.sg, ls);
-            }
-
-            bool visible = true;
-            if (validSample)
-            {
-                const Ray ray = ls.getVisibilityRay();
-                visible = traceVisibilityRay(ray);
-
-
-                if (ls.lightType == (uint)LightSampleType::Analytic && ls.pdf == 0.f)
-                {
-                    ls.pdf = getAnalyicSelectionProbability(); // analytic light doesn't have a solid angle PDF.
-                }
-            }
-
-            if (validSample && visible)
-            {
-                tempPathReservoir.rcVertexWi[0] = ls.dir;
-                tempPathReservoir.rcVertexIrradiance[0] = ls.Li * ls.pdf;
-                tempPathReservoir.pathFlags.insertLightType(ls.lightType);
-                tempPathReservoir.lightPdf = ls.pdf;
-            }
-            else tempPathReservoir.rcVertexIrradiance[0] = 0.f;
-        }
-        else
-        {
-            Ray emptyRay = Ray(float3(0.f), float3(0.f), 0.f, kRayTMax);
-
-            // should always be false in this case
-            bool isRcVertexEscapedVertex = false;
-            generateRandomReplayPath(path, tempPathReservoir.rcVertexHit.getHitInfo(), emptyRay, tempPathReservoir.rcRandomSeed, tempPathReservoir.pathFlags.pathLength(), tempPathReservoir.pathFlags.lastVertexNEE(), isRcVertexEscapedVertex);
-            path.length = rcVertexLength;
-            path.useHybridShift = false;
-            path.isReplayForHybridShift = false;
-
-            uint lobes = getBSDFLobes(rcVertexSd);
-            bool sampleUpperHemisphere = ((lobes & (uint)LobeType::NonDeltaReflection) != 0);
-            if (!kUseLightsInDielectricVolumes && path.isInsideDielectricVolume()) sampleUpperHemisphere = false;
-            bool sampleLowerHemisphere = ((lobes & (uint)LobeType::NonDeltaTransmission) != 0);
-            path.setLightSampled(sampleUpperHemisphere, sampleLowerHemisphere);
-
-            // start from path length
-            float3 scatterDir = tempPathReservoir.rcVertexWi[0];
-            path.pathBuilder.rcVertexLength = rcVertexLength;
-            path.origin = rcVertexSd.computeNewRayOrigin(!tempPathReservoir.pathFlags.decodeIsTransmissionEvent(false));
-
-            path.pathBuilder.pathFlags.transferDeltaInformation(tempPathReservoir.pathFlags);
-            path.pathBuilder.pathFlags.transferTransmissionInformation(tempPathReservoir.pathFlags);
-            path.pathBuilder.pathFlags.transferSpecularBounceInformation(tempPathReservoir.pathFlags);
-            path.pathReservoir.rcVertexIrradiance[0] = 0.f;
-
-            generateReplayPrimaryScatterRay(path, rcVertexSd, scatterDir);
-            path.sg = SampleGenerator(tempPathReservoir.rcRandomSeed);
-            if (path.isActive()) nextVertex(path);
-
-            while (path.isActive() && path.isHit())
-            {
-                // Volume scattering is ignored
-                // Handle surface hit 
-                if (path.isActive())
-                {
-                    if (path.isHit())
-                    {
-                        handleHit(path);
-                    }
-                }
-
-                // Move to the next path vertex.
-                if (path.isActive() && path.isHit()) nextVertex(path);
-            }
-
-            // Handle the miss and terminate path.
-            if (path.isActive())
-            {
-                handleMiss(path);
-            }
-
-            // unlike traceRandomReplayPath(), we don't directly copy the path.pathReservoir.
-            // this is because we start at path.length == 2, we can also terminate early,
-            // so pathReservoir won't record enough information for a complete path reservoir
-            // so we need to manually copy some members we need later
-            // this cannot be replaced by pathBuilder because of escapedRcVertex not setting pathBuilder.rcVertexHit (TODO: refactor)
-            tempPathReservoir.rcVertexIrradiance[0] = path.pathReservoir.rcVertexIrradiance[0];
-            tempPathReservoir.lightPdf = path.pathReservoir.lightPdf;
-            tempPathReservoir.pathFlags.insertLightType(path.pathReservoir.pathFlags.lightType());
-        }
     }
 
     /** Finalize the path state before writing to the output buffer.
@@ -1868,16 +1501,6 @@ struct PathTracer
 
             if (PathSamplingMode(kPathSamplingMode) == PathSamplingMode::PathTracing)
                 L += path.L;
-            else if (PathSamplingMode(kPathSamplingMode) == PathSamplingMode::PathReuse)
-            {
-                path.pathReservoir.weight = 1.f;
-                if (isLastRound)
-                {
-                    float3 color = path.pathReservoir.F + path.pathReservoir.cachedJacobian;
-                    if (any(isinf(color) || isnan(color))) color = 0.f;
-                    L += color;
-                }
-            }
             else
             {
                 path.pathReservoir.finalizeRIS();
@@ -1987,64 +1610,6 @@ struct PathTracer
                 }
             }
         }
-
-        if (kOutputNRDData && PathSamplingMode(kPathSamplingMode) == PathSamplingMode::PathTracing) 
-        {
-            float3 diffuseRadiance = 0.f;
-            float3 specularRadiance = 0.f;
-            float3 residualRadiance = 0.f;
-            float hitDist = path.hitDist;
-
-            {
-                NRDPathType pathType;
-                if (path.isDiffusePrimaryHit()) pathType = NRDPathType::Diffuse;
-                else if (path.isSpecularPrimaryHit()) pathType = NRDPathType::Specular;
-                else pathType = NRDPathType::Residual;
-
-                float3 radiance = path.L + path.LDeltaDirect;
-
-                if (useDirectLighting)
-                {
-                    radiance += directLighting[pixel].rgb;
-                }
-
-                float3 reflectance = path.sharedScatterDir;
-                reflectance = max(0.04f, reflectance);
-                float3 emission = path.rcPrevVertexWo;
-                float3 demodulatedRadiance = max(0.f, (radiance - emission)) / reflectance;
-
-                switch (pathType)
-                {
-                case NRDPathType::Diffuse:
-                    diffuseRadiance += demodulatedRadiance;
-                    break;
-                case NRDPathType::Specular:
-                    specularRadiance += demodulatedRadiance;
-                    break;
-                default:
-                    // Do not demodulate residual.
-                    residualRadiance += radiance;
-                    break;
-                }
-            }
-
-            const uint spp = kSamplesPerPixel;
-            const float invSpp = spp > 0 ? 1.f / spp : 1.f; // Setting invSpp to 1.0 if we have no samples to avoid NaNs below.
-
-            if (sampleId == 0)
-            {
-                outputNRDDiffuseRadianceHitDist[pixel] = float4(invSpp * diffuseRadiance, invSpp * hitDist);
-                outputNRDSpecularRadianceHitDist[pixel] = float4(invSpp * specularRadiance, invSpp * hitDist);
-                outputNRDResidualRadianceHitDist[pixel] = float4(invSpp * residualRadiance, invSpp * hitDist);
-            }
-            else
-            {
-                outputNRDDiffuseRadianceHitDist[pixel] += float4(invSpp * diffuseRadiance, invSpp * hitDist);
-                outputNRDSpecularRadianceHitDist[pixel] += float4(invSpp * specularRadiance, invSpp * hitDist);
-                outputNRDResidualRadianceHitDist[pixel] += float4(invSpp * residualRadiance, invSpp * hitDist);
-            }
-        }
-
     }
 
 };

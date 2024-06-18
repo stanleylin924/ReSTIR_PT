@@ -12,7 +12,7 @@ def render_graph_ReSTIRGI():
     # loadRenderPassLibrary("ErrorMeasurePass.dll")
     # loadRenderPassLibrary("ImageLoader.dll")
 
-    ReSTIRGIPlusPass = createPass("ReSTIRGIPass", {'samplesPerPixel': 1})
+    ReSTIRGIPlusPass = createPass("ReSTIRGIPass", {'samplesPerPixel': 1, 'enableTemporalReuse': False, 'enableSpatialReuse': False, 'useDirectLighting':False})
     g.addPass(ReSTIRGIPlusPass, "ReSTIRGIPass")
     VBufferRT = createPass("VBufferRT", {'samplePattern': SamplePattern.Center, 'sampleCount': 1, 'texLOD': TexLODMode.Mip0, 'useAlphaTest': True})
     g.addPass(VBufferRT, "VBufferRT")
