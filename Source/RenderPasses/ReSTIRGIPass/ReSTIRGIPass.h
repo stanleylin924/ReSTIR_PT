@@ -121,9 +121,6 @@ private:
         mParams = RestirPathTracerParams();
         mEnableTemporalReuse = true;
         mEnableSpatialReuse = true;
-        mSpatialReusePattern = SpatialReusePattern::Default;
-        mPathReusePattern = PathReusePattern::NRooksShift;
-        mSmallWindowRestirWindowRadius = 2;
         mSpatialNeighborCount = 3;
         mSpatialReuseRadius = 20.f;
         mNumSpatialRounds = 1;
@@ -162,9 +159,6 @@ private:
     // params below
     bool                            mEnableTemporalReuse = true;
     bool                            mEnableSpatialReuse = true;
-    SpatialReusePattern             mSpatialReusePattern = SpatialReusePattern::Default;
-    PathReusePattern                mPathReusePattern = PathReusePattern::NRooksShift;
-    uint32_t                        mSmallWindowRestirWindowRadius = 2;
     int                             mSpatialNeighborCount = 3;
     float                           mSpatialReuseRadius = 20.f;
     int                             mNumSpatialRounds = 1;

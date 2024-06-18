@@ -90,19 +90,6 @@ namespace
         { (uint32_t)ReSTIRMISKind::ConstantBiased, "Constant resampling MIS (constant contribution MIS, biased)" },
     };
 
-    const Gui::DropdownList kPathReusePatternList =
-    {
-        { (uint32_t)PathReusePattern::Block, std::string("Block")},
-        { (uint32_t)PathReusePattern::NRooks, std::string("N-Rooks")},
-        { (uint32_t)PathReusePattern::NRooksShift, std::string("N-Rooks Shift")},
-    };
-
-    const Gui::DropdownList kSpatialReusePatternList =
-    {
-        { (uint32_t)SpatialReusePattern::Default, std::string("Default")},
-        { (uint32_t)SpatialReusePattern::SmallWindow, std::string("Small Window")},
-    };
-
     const Gui::DropdownList kEmissiveSamplerList =
     {
         { (uint32_t)EmissiveLightSamplerType::Uniform, "Uniform" },
@@ -247,10 +234,6 @@ void ReSTIRGIPass::registerBindings(pybind11::module& m)
     pathSamplingMode.value("ReSTIR", PathSamplingMode::ReSTIR);
     pathSamplingMode.value("PathTracing", PathSamplingMode::PathTracing);
 
-    pybind11::enum_<SpatialReusePattern> spatialReusePattern(m, "SpatialReusePattern");
-    spatialReusePattern.value("Default", SpatialReusePattern::Default);
-    spatialReusePattern.value("SmallWindow", SpatialReusePattern::SmallWindow);
-
     pybind11::class_<ReSTIRGIPass, RenderPass, ReSTIRGIPass::SharedPtr> pass(m, "ReSTIRGIPass");
     pass.def_property_readonly("pixelStats", &ReSTIRGIPass::getPixelStats);
 
@@ -390,8 +373,6 @@ bool ReSTIRGIPass::parseDictionary(const Dictionary& dict)
         else if (key == kEnableTemporalReprojection) mEnableTemporalReprojection = value;
         else if (key == kSpatialNeighborCount) mSpatialNeighborCount = value;
         else if (key == kFeatureBasedRejection) mFeatureBasedRejection = value;
-        else if (key == kSpatialReusePattern) mSpatialReusePattern = value;
-        else if (key == kSmallWindowRestirWindowRadius) mSmallWindowRestirWindowRadius = value;
         else if (key == kSpatialReuseRadius) mSpatialReuseRadius = value;
         else if (key == kUseDirectLighting) mUseDirectLighting = value;
         else if (key == kSeparatePathBSDF) mStaticParams.separatePathBSDF = value;
@@ -541,8 +522,6 @@ Dictionary ReSTIRGIPass::getScriptingDictionary()
     d[kEnableTemporalReprojection] = mEnableTemporalReprojection;
     d[kSpatialNeighborCount] = mSpatialNeighborCount;
     d[kFeatureBasedRejection] = mFeatureBasedRejection;
-    d[kSpatialReusePattern] = mSpatialReusePattern;
-    d[kSmallWindowRestirWindowRadius] = mSmallWindowRestirWindowRadius;
     d[kSpatialReuseRadius] = mSpatialReuseRadius;
     d[kUseDirectLighting] = mUseDirectLighting;
     d[kSeparatePathBSDF] = mStaticParams.separatePathBSDF;
@@ -802,14 +781,8 @@ bool ReSTIRGIPass::renderRenderingUI(Gui::Widgets& widget)
             if (auto group = widget.group("Spatial reuse controls", true))
             {
                 dirty |= widget.var("Num Spatial Rounds", mNumSpatialRounds, 1, 5);
-                dirty |= widget.dropdown("Spatial Reuse Pattern", kSpatialReusePatternList, reinterpret_cast<uint32_t&>(mSpatialReusePattern));
                 dirty |= widget.checkbox("Feature-based rejection", mFeatureBasedRejection);
 
-                if (SpatialReusePattern(mSpatialReusePattern) == SpatialReusePattern::SmallWindow)
-                {
-                    dirty |= widget.var("Window radius", mSmallWindowRestirWindowRadius, 0u, 32u);
-                }
-                else
                 {
                     dirty |= widget.var("Spatial Neighbor Count", mSpatialNeighborCount, 0, 6);
                     dirty |= widget.var("Spatial Reuse Radius", mSpatialReuseRadius, 0.f, 100.f);
@@ -1474,13 +1447,10 @@ void ReSTIRGIPass::PathReusePass(RenderContext* pRenderContext, uint32_t restir_
     }
     else
     {
-        var["gSpatialReusePattern"] = (uint32_t)mSpatialReusePattern;
-
         {
             var["gNeighborCount"] = mSpatialNeighborCount;
             var["gGatherRadius"] = mSpatialReuseRadius;
             var["gSpatialRoundId"] = spatialRoundId;
-            var["gSmallWindowRadius"] = mSmallWindowRestirWindowRadius;
             var["gFeatureBasedRejection"] = mFeatureBasedRejection;
             var["neighborOffsets"] = mpNeighborOffsets;
         }

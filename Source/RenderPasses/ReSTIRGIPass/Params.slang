@@ -98,28 +98,11 @@ enum class ReSTIRMISKind
     ConstantBiased = 4
 };
 
-enum class SpatialReusePattern
-#ifdef HOST_CODE
-    : uint32_t
-#endif
-{
-    Default = 0, // same as in ScreenSpaceReSTIR
-    SmallWindow = 1,
-};
-
 enum class PathSamplingMode
 {
     ReSTIR,
     PathTracing
 };
-
-enum class PathReusePattern
-{
-    Block,
-    NRooks,
-    NRooksShift
-};
-
 
 // Import static specialization constants.
 #ifndef HOST_CODE
