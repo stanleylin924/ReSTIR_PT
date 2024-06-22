@@ -183,7 +183,6 @@ struct PathTracer
 
         path.LDeltaDirect = float3(0.f);
         path.enableRandomReplay = false;
-        path.useHybridShift = false;
         path.isLastVertexClassifiedAsRough = true;
         path.isReplayForHybridShift = false;
 
@@ -1022,40 +1021,6 @@ struct PathTracer
                 // will change this to path.IsDelta() if ScreenSpaceReSTIR can handle transmission
                 if (!isLightSamplable && path.length == 1) path.LDeltaDirect += Lr;
             }
-
-            // daqi: here we are adding the path terminated with an escaped vertex
-            if ((!path.enableRandomReplay || terminateRandomReplayForEscape) && PathSamplingMode(kPathSamplingMode) != PathSamplingMode::PathTracing)
-            {
-                bool selectedCurrentPath = path.pathBuilder.addEscapeVertex(params, max(0, path.length - 1), path.dir, Lr, path.thp * sd.emissive * misWeight, 
-                    path.useHybridShift, path.russianRoulettePdf, misWeight, lightPdf, (uint)LightSampleType::Emissive, path.pathReservoir, path.enableRandomReplay);
-
-                // daqi: if current escaped vertex has path.length >= 2, then it can be used as a rcVertex
-                if (selectedCurrentPath&& path.useHybridShift&& path.length >= 2 && path.length < path.pathBuilder.rcVertexLength)
-                {
-                    // insert path flags
-
-                    // daqi: ideally, this should use a smaller nearFieldDistance than the default threshold
-                    bool isFarField = length(sd.posW - path.origin) >= params.nearFieldDistance;
-                    bool isLastVertexAcceptableForRcPrev = path.isLastVertexClassifiedAsRough;
-
-                    if (!(params.localStrategyType & (uint)LocalStrategy::DistanceCondition && !isFarField || params.localStrategyType & (uint)LocalStrategy::RoughnessCondition && !isLastVertexAcceptableForRcPrev))
-                    {
-                        if (path.isReplayForHybridShift) // non-invertible case 
-                        {
-                            path.L = 0.f;
-                        }
-                        else
-                        {
-                            // we found an RC vertex!
-                            // set rcVertexLength to current length (this will make rcVertexLength = reseroivr.pathLength + 1)
-                            float3 disp = path.origin - sd.posW;
-                            float geometryFactor = abs(dot(sd.faceN, sd.V)) / dot(disp, disp);
-
-                            path.pathBuilder.markEscapeVertexAsRcVertex(params, path.length, path.pathReservoir, path.hit, path.isDelta(), path.isTransmission(), path.isSpecularBounce(), lightPdf, (uint)LightSampleType::Emissive, sd.emissive, float3(0.f), path.prevScatterPdf, geometryFactor);
-                        }
-                    }
-                }
-            }
         }
 
         // Terminate after scatter ray on last vertex has been processed.
@@ -1107,7 +1072,7 @@ struct PathTracer
                 (!(params.localStrategyType & (uint)LocalStrategy::DistanceCondition && !isFarField ||
                         params.localStrategyType & (uint)LocalStrategy::RoughnessCondition && !(isCurrentVertexClassifiedAsRough && isLastVertexAcceptableForRcPrev))));
 
-            if (!path.useHybridShift && path.length == 1 || path.useHybridShift && canConnect)
+            if (path.length == 1)
             {
                 is_rcVertex = true;
                 path.pathBuilder.rcVertexHit.initFromHitInfo(path.hit);
@@ -1124,7 +1089,7 @@ struct PathTracer
                 path.pathBuilder.cachedJacobian.z = abs(dot(sd.faceN, sd.V)) / dot(disp, disp);
 
                 // daqi: save the current path length as the rcVertex length
-                if (canConnect || !path.useHybridShift)
+                if (canConnect)
                 {
                     path.pathBuilder.rcVertexLength = path.length;
                 }
@@ -1272,7 +1237,7 @@ struct PathTracer
                                 {
                                     weight = 1.f;
                                 }
-                                bool selected = path.pathBuilder.addNeeVertex(params, path.length, ls.dir, Lr, weight * ls.Li * path.thp, path.useHybridShift,
+                                bool selected = path.pathBuilder.addNeeVertex(params, path.length, ls.dir, Lr, weight * ls.Li * path.thp,
                                     path.russianRoulettePdf, misWeight, ls.pdf, ls.lightType, path.pathReservoir, path.enableRandomReplay);
                             }
                         }
@@ -1326,31 +1291,6 @@ struct PathTracer
 
         // Generate the next path segment or terminate.
         bool valid = generateScatterRay(sd, path);
-
-        // forbid current vertex being rcVertex
-        if (kSeparatePathBSDF && params.localStrategyType & (uint)LocalStrategy::RoughnessCondition)
-        {
-            bool seenAsConnectible = !path.isSpecularBounce() || sd.linearRoughness > params.specularRoughnessThreshold;
-
-            if (path.isReplayForHybridShift && seenAsConnectible && isLastVertexAcceptableForRcPrev && path.length >= 1)
-            {
-                // check if near field rejection is satisfied
-                if (isFarField || !(params.localStrategyType & (uint)LocalStrategy::DistanceCondition))
-                {
-                    // non-invertible
-                    invalidateAndTerminateReplayPath(path);
-                }
-            }
-            else if (!path.isReplayForHybridShift && path.useHybridShift && !seenAsConnectible)
-            {
-                if (is_rcVertex)
-                {
-                    is_rcVertex = false; 
-                    path.pathBuilder.rcVertexLength = kMaximumPathLength; // reset
-                }
-            }
-            if (path.useHybridShift) isCurrentVertexClassifiedAsRough = seenAsConnectible;
-        }
 
         // cache seed for temporal validation (only possible for non early direction reuse since it uses the cachedRandomSeed slot)
         if (path.length == path.pathBuilder.rcVertexLength)
@@ -1438,35 +1378,6 @@ struct PathTracer
 
                 // will change this to path.IsDelta() if ScreenSpaceReSTIR can handle transmission
                 if (!isLightSamplable && path.length == 0) path.LDeltaDirect += Lr;
-            }
-
-            // daqi: here we are adding the path terminated with an escaped vertex
-            if ((!path.enableRandomReplay || terminateRandomReplayForEscape) && PathSamplingMode(kPathSamplingMode) != PathSamplingMode::PathTracing)
-            {
-                bool selectedCurrentPath = path.pathBuilder.addEscapeVertex(params, path.length, path.dir, Lr, path.thp * Le * misWeight, 
-                    path.useHybridShift, path.russianRoulettePdf, misWeight, lightPdf, (uint)LightSampleType::EnvMap, path.pathReservoir, path.enableRandomReplay);
-
-                // daqi: if current escaped vertex has path.length >= 2, then it can be used as a rcVertex
-                if (selectedCurrentPath && path.useHybridShift && path.length >= 1 && path.length + 1 < path.pathBuilder.rcVertexLength)
-                {
-                    bool isLastVertexAcceptableForRcPrev = path.isLastVertexClassifiedAsRough;
-
-                    // daqi: in the case of escaped to infinitely far, we always satisfy the far field requirement
-                    if (!(params.localStrategyType & (uint)LocalStrategy::RoughnessCondition && !isLastVertexAcceptableForRcPrev))
-                    {
-                        if (path.isReplayForHybridShift) // non-invertible case 
-                        {
-                            path.L = 0.f;
-                        }
-                        else
-                        {
-                            // we found an RC vertex!
-                            // set rcVertexLength to current length (this will make rcVertexLength = reseroivr.pathLength + 1)
-                            HitInfo dummyHit = HitInfo();
-                            path.pathBuilder.markEscapeVertexAsRcVertex(params, path.length + 1, path.pathReservoir, dummyHit, path.isDelta(), path.isTransmission(), path.isSpecularBounce(), lightPdf, (uint)LightSampleType::EnvMap, Le, path.dir, path.prevScatterPdf, 1.f);
-                        }
-                    }
-                }
             }
         }
 
