@@ -29,7 +29,6 @@ struct PathReusePass
     RWTexture2D<float4> outputColor;                      ///< Output resolved color.
     StructuredBuffer<PathReservoir> outputReservoirs;     // reservoir from previous pass
     RWStructuredBuffer<PathReservoir> temporalReservoirs; // resulting reservoir for next frame
-    StructuredBuffer<PathReuseMISWeight> misWeightBuffer;
 
     int gSpatialRoundId;
     int  gNumSpatialRounds;
@@ -115,8 +114,6 @@ struct PathReusePass
         }
 
         float3 color = 0.f;
-        ReconnectionData dummyRcData;
-        dummyRcData.Init();
 
         int neighborCount = getNeighborCount();
         const uint startIndex = sampleNext1D(sg) * kNeighborOffsetCount;

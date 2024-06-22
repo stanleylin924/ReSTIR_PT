@@ -78,22 +78,5 @@ struct PathBuilder
 
         return selected;
     }
-
-    [mutating] void markEscapeVertexAsRcVertex(RestirPathTracerParams params, uint pathLength, inout PathReservoir pathReservoir, HitInfo hit, bool isDelta,
-        bool isTransmission, bool isSpecularBounce, float lightPdf, uint lightType, float3 rcVertexIrradiance, float3 rcVertexWi, float prevScatterPdf, float geometryFactor)
-    {
-        pathReservoir.pathFlags.insertRcVertexLength(pathLength);
-
-        pathReservoir.rcVertexHit.initFromHitInfo(hit);
-        pathReservoir.pathFlags.insertIsDeltaEvent(isDelta, true);
-        pathReservoir.pathFlags.insertIsTransmissionEvent(isTransmission, true);
-        pathReservoir.pathFlags.insertIsSpecularBounce(isSpecularBounce, true);
-        pathReservoir.lightPdf = lightPdf;
-        pathReservoir.cachedJacobian.x = prevScatterPdf;
-        pathReservoir.pathFlags.insertLightType(lightType);
-        pathReservoir.rcVertexIrradiance[0] = rcVertexIrradiance;
-        pathReservoir.rcVertexWi[0] = rcVertexWi;
-        pathReservoir.cachedJacobian.z = geometryFactor;
-    }
 };
 

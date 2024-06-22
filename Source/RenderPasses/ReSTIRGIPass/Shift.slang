@@ -22,27 +22,6 @@ bool isJacobianInvalid(float Jacobian)
     return Jacobian <= 0.f || isnan(Jacobian) || isinf(Jacobian);
 }
 
-bool shiftAndMergeReservoir(const RestirPathTracerParams params, bool temporalUpdateForDynamicScene, inout float dstJacobian, const PackedHitInfo dstPrimaryHitPacked, const ShadingData dstPrimarySd, inout PathReservoir dstReservoir,
-                                    const ShadingData srcPrimarySd, const PathReservoir srcReservoir, ReconnectionData rcData, bool evalVisibility, inout SampleGenerator sg, bool isSpatialReuse, float misWeight = 1.f, bool forceMerge = false)
-{
-    PathReservoir tempPathReservoir = srcReservoir;
-    float3 dstIntegrand = 0.0f;//computeShiftedIntegrand_(params, dstJacobian, dstPrimaryHitPacked, dstPrimarySd, srcPrimarySd,
-                               //                             tempPathReservoir, rcData, evalVisibility, false, temporalUpdateForDynamicScene);
-
-    {
-        bool selected = dstReservoir.merge(dstIntegrand, dstJacobian, tempPathReservoir, sg, misWeight, forceMerge);
-
-        if (forceMerge)
-        {
-            if (!selected) dstReservoir.F = 0.f;
-            dstReservoir.M = srcReservoir.M;
-            dstReservoir.weight = srcReservoir.weight;
-        }
-
-        return selected;
-    }
-}
-
 bool mergeReservoirNoResampling(const RestirPathTracerParams params, inout PathReservoir dstReservoir, const PathReservoir srcReservoir, inout SampleGenerator sg)
 {
     bool selected = dstReservoir.merge(srcReservoir.F, 1.f, srcReservoir, sg, 1.f);

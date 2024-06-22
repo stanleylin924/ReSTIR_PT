@@ -100,8 +100,6 @@ struct PathReusePass
         if (!isValidPackedHitInfo(centralPrimaryHitPacked)) return;
 
         float3 color = 0.f;
-        ReconnectionData dummyRcData;
-        dummyRcData.Init();
 
         {
             bool chooseCurrent = true;

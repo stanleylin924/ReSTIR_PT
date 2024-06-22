@@ -135,40 +135,6 @@ struct ReSTIRPathFlags
 
 };
 
-struct ReconnectionData
-{
-    HitInfo rcPrevHit; // 16 bytes
-    float3 rcPrevWo; // 12 bytes
-    float3 pathThroughput; // 12 bytes
-    __init(HitInfo rcPrevHit, float3 rcPrevWo, float3 pathThroughput)
-    {
-        this.rcPrevHit = rcPrevHit;
-        this.rcPrevWo = rcPrevWo;
-        this.pathThroughput = pathThroughput;
-    }
-
-    [mutating]
-    void Init()
-    {
-        //rcPrevHit.clear();
-        rcPrevHit.data[0] = 0;
-        rcPrevHit.data[1] = 0;
-        rcPrevHit.data[2] = 0;
-        rcPrevHit.data[3] = 0;
-        rcPrevWo = float3(0.f);
-        pathThroughput = float3(1.f);
-    }
-}
-
-// real time: RCDATA_PATH_NUM = 6, RCDATA_PAD_SIZE = 1  (256 bytes)
-// offline:   RCDATA_PATH_NUM = 12, RCDATA_PAD_SIZE = 2 (512 bytes)
-
-struct PixelReconnectionData
-{
-    ReconnectionData data[RCDATA_PATH_NUM];
-    float4 padding[RCDATA_PAD_SIZE]; //pad to 256 bytes
-}
-
 
 struct TriMeshHitInfo
 {
