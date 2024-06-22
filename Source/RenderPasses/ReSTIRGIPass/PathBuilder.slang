@@ -41,45 +41,6 @@ struct PathBuilder
     }
 
     [mutating]
-    bool addEscapeVertex(RestirPathTracerParams params, uint pathLength, float3 wi, float3 pathWeight, float3 postfixWeight,
-        float russianroulettePDF, float misWeight, float lightPdf, int lightType, inout PathReservoir pathReservoir, bool forceAdd = false)
-    {
-        bool selected = false;
-
-        if (pathLength >= 1)
-        {
-            bool is_rcVertex = pathLength == rcVertexLength;
-
-            if (forceAdd || pathReservoir.add(pathWeight, russianroulettePDF, sg))
-            {
-                selected = true;
-                pathReservoir.pathFlags = pathFlags;
-                pathReservoir.pathFlags.insertPathLength(pathLength);
-                pathReservoir.pathFlags.insertRcVertexLength(rcVertexLength);
-                pathReservoir.pathFlags.insertLastVertexNEE(false);
-                pathReservoir.rcVertexIrradiance[0] = postfixWeight;
-                pathReservoir.F = pathWeight;
-                pathReservoir.rcVertexWi[0] = rcVertexWi[0];
-                pathReservoir.rcVertexHit = rcVertexHit;
-
-                pathReservoir.cachedJacobian = cachedJacobian;
-
-                pathReservoir.rcRandomSeed = cachedRandomSeed;
-
-                if (is_rcVertex) // at rcVertex
-                {
-                    pathReservoir.rcVertexWi[0] = wi;
-                    pathReservoir.rcVertexIrradiance[0] /= misWeight; // exclude last vertex dependent mis weight
-                }
-                pathReservoir.lightPdf = lightPdf;
-                pathReservoir.pathFlags.insertLightType(lightType);
-            }
-        }
-
-        return selected;
-    }
-
-    [mutating]
     bool addNeeVertex(RestirPathTracerParams params, uint pathLength, float3 wi, float3 pathWeight, float3 postfixWeight,
         float russianroulettePDF, float misWeight, float lightPdf, int lightType, inout PathReservoir pathReservoir, bool forceAdd = false)
     {

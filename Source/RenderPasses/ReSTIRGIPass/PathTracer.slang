@@ -182,9 +182,7 @@ struct PathTracer
         path.rcVertexPathTreeIrradiance = float3(0.f);
 
         path.LDeltaDirect = float3(0.f);
-        path.enableRandomReplay = false;
         path.isLastVertexClassifiedAsRough = true;
-        path.isReplayForHybridShift = false;
 
         // Load the primary hit info from the V-buffer.
         // If invalid, the path is still active and treated as a miss.
@@ -975,7 +973,7 @@ struct PathTracer
         // daqi: when doing random number replay, we will terminate the path when the length reaches the base path length and 
         // when the path types match. In this case, if the base path is a escaped path (as opposed to an NEE path), we should terminate when we 
         // find that offset path can also be an escaped path
-        bool terminateRandomReplayForEscape = path.enableRandomReplay && path.length - 1 == path.randomReplayLength && path.randomReplayIsEscaped && path.randomReplayLength >= 1;
+        bool terminateRandomReplayForEscape = false;
 
         float3 attenuatedEmission = 0.f;
 
@@ -1015,7 +1013,6 @@ struct PathTracer
             attenuatedEmission = path.getCurrentThp() * sd.emissive; //only used for primary hit
 
             // daqi: Since ScreenSpaceReSTIR cannot handle transmission and delta reflection, we must include the contribution in the color buffer 
-            if (!path.enableRandomReplay || terminateRandomReplayForEscape)
             {
                 if (!kDisableDirectIllumination || path.length > 1) path.L += Lr;
                 // will change this to path.IsDelta() if ScreenSpaceReSTIR can handle transmission
@@ -1056,7 +1053,7 @@ struct PathTracer
         // daqi: when doing random number replay, we will terminate the path when the length reaches the base path length and 
         // when the path types match. In this case, if the base path is a NEE path (as opposed to an escaped path), we should terminate when we 
         // find that offset path can also be an NEE path
-        bool terminateRandomReplayForNEE = path.enableRandomReplay && path.length == path.randomReplayLength && path.randomReplayIsNEE;
+        bool terminateRandomReplayForNEE = false;
 
         bool is_rcVertex = false;
 
@@ -1066,7 +1063,7 @@ struct PathTracer
         bool isLastVertexAcceptableForRcPrev = path.isLastVertexClassifiedAsRough;
 
         // daqi: if we are not doing a hybrid shift replay, we should check if current vertex satisfy the condition to be used as a rcVertex
-        if (!path.isReplayForHybridShift && PathSamplingMode(kPathSamplingMode) != PathSamplingMode::PathTracing)
+        if (PathSamplingMode(kPathSamplingMode) != PathSamplingMode::PathTracing)
         {
             bool canConnect = (path.length >= 1 && path.length < path.pathBuilder.rcVertexLength &&
                 (!(params.localStrategyType & (uint)LocalStrategy::DistanceCondition && !isFarField ||
@@ -1170,7 +1167,7 @@ struct PathTracer
         if (!(kDisableDirectIllumination && isPrimaryHit))
         {
             // generate kNEESamples light samples
-            if (sampleLights && (!path.enableRandomReplay || terminateRandomReplayForNEE))
+            if (sampleLights)
             {
                 // cache (NEE sampling) seed for temporal validation (only possible for non early direction reuse since it uses the cachedRandomSeed slot)
                 if (path.length == path.pathBuilder.rcVertexLength)
@@ -1220,8 +1217,7 @@ struct PathTracer
                         bool visible = traceVisibilityRay(ray);
                         if (visible)
                         {
-                            if (!path.enableRandomReplay || terminateRandomReplayForNEE)
-                                path.L += Lr;
+                            path.L += Lr;
 
                             if (ls.lightType == (uint)LightSampleType::Analytic && ls.pdf == 0.f)
                             {
@@ -1238,7 +1234,7 @@ struct PathTracer
                                     weight = 1.f;
                                 }
                                 bool selected = path.pathBuilder.addNeeVertex(params, path.length, ls.dir, Lr, weight * ls.Li * path.thp,
-                                    path.russianRoulettePdf, misWeight, ls.pdf, ls.lightType, path.pathReservoir, path.enableRandomReplay);
+                                    path.russianRoulettePdf, misWeight, ls.pdf, ls.lightType, path.pathReservoir);
                             }
                         }
                     }
@@ -1247,14 +1243,6 @@ struct PathTracer
             else
                 // daqi: for random number replay, we should skip the random numbers for NEE if we should not terminate on current bounce
             {
-                if (path.enableRandomReplay && sampleLights)
-                {
-                    bool sampleUpperHemisphere = ((lobes & (uint)LobeType::NonDeltaReflection) != 0);
-                    if (!kUseLightsInDielectricVolumes && path.isInsideDielectricVolume()) sampleUpperHemisphere = false;
-                    bool sampleLowerHemisphere = ((lobes & (uint)LobeType::NonDeltaTransmission) != 0);
-                    path.setLightSampled(sampleUpperHemisphere, sampleLowerHemisphere);
-                }
-
                 skipLightSampleRandomNumbers(path.sg);
             }
         }
@@ -1270,11 +1258,6 @@ struct PathTracer
         // TODO: check if this is handled correctly in ReSTIR PT
         if (kUseRussianRoulette && path.length >= 1)
         {
-            if (path.enableRandomReplay)
-            {
-                sampleNext1D(path.sg);
-            }
-            else
             {
                 if (terminatePathByRussianRoulette(path)) return;
             }
@@ -1368,11 +1351,9 @@ struct PathTracer
             // daqi: when doing random number replay, we will terminate the path when the length reaches the base path length and 
             // when the path types match. In this case, if the base path is a escaped path (as opposed to an NEE path), we should terminate when we 
             // find that offset path can also be an escaped path
-            bool terminateRandomReplayForEscape = path.enableRandomReplay && path.length == path.randomReplayLength && path.randomReplayIsEscaped
-                && path.length >= 1;
+            bool terminateRandomReplayForEscape = false;
 
             // daqi: Since ScreenSpaceReSTIR cannot handle transmission and delta reflection, we must include the contribution in the color buffer 
-            if (!path.enableRandomReplay || terminateRandomReplayForEscape)
             {
                 if (!kDisableDirectIllumination || path.length > 0) path.L += Lr;
 
