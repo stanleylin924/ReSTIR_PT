@@ -178,7 +178,6 @@ struct PathTracer
         path.setActive();
         path.id = pathID;
         path.thp = float3(1.f);
-        path.prefixThp = float3(1.f);
         path.rcVertexPathTreeIrradiance = float3(0.f);
 
         path.LDeltaDirect = float3(0.f);
@@ -1027,7 +1026,6 @@ struct PathTracer
             if (path.length == 1)
             {
                 is_rcVertex = true;
-                path.pathBuilder.rcVertexHit.initFromHitInfo(path.hit);
                 // daqi: save the scatter PDF as cachedJacobian
                 path.pathBuilder.cachedJacobian.x = path.prevScatterPdf;
                 path.pathBuilder.pathFlags.insertIsDeltaEvent(path.isDelta(), true);
@@ -1134,12 +1132,6 @@ struct PathTracer
 
         // Generate the next path segment or terminate.
         bool valid = generateScatterRay(sd, path);
-
-        // daqi: save the incoming direction on rcVertex
-        if (is_rcVertex && valid && (int(path.length > 1) == 0 || true))
-        {
-            path.pathBuilder.rcVertexWi[0] = path.dir;
-        }
 
         path.isLastVertexClassifiedAsRough = isCurrentVertexClassifiedAsRough;
 

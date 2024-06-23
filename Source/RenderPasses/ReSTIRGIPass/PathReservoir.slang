@@ -175,14 +175,14 @@ struct PathReservoir
     float M = 0.f; // this is a float, because temporal history length is allowed to be a fraction. 
     float weight = 0.f; // during RIS and when used as a "RisState", this is w_sum; during RIS when used as an incoming reseroivr or after RIS, this is 1/p(y) * 1/M * w_sum
     ReSTIRPathFlags pathFlags; // this is a path type indicator, see the struct definition for details
-    uint rcRandomSeed; // saved random seed after rcVertex (due to the need of blending half-vector reuse and random number replay)
+    uint rcRandomSeed; // dummy
     float3 F = 0.f; // cached integrand (always updated after a new path is chosen in RIS)
     float lightPdf; // NEE light pdf (might change after shift if transmission is included since light sampling considers "upperHemisphere" of the previous bounce)
     float3 cachedJacobian; // saved previous vertex scatter PDF, scatter PDF, and geometry term at rcVertex (used when rcVertex is not v2)
-    uint initRandomSeed; // saved random seed at the first bounce (for recovering the random distance threshold for hybrid shift)
-    TriMeshHitInfo rcVertexHit; // hitinfo of the reconnection vertex
-    float3 rcVertexWi[kRcAttrCount]; // incident direction on reconnection vertex
-    float3 rcVertexIrradiance[kRcAttrCount]; // sampled irradiance on reconnection vertex
+    uint initRandomSeed; // dummy
+    TriMeshHitInfo rcVertexHit; // dummy
+    float3 rcVertexWi[kRcAttrCount]; // dummy
+    float3 rcVertexIrradiance[kRcAttrCount]; // dummy
 
     // [0] -- (the rcVertex at x2, secondary hit point)
     // [1] -- (the rcVertex at a bounce chosen by the hybrid shift heuristics)
@@ -194,9 +194,6 @@ struct PathReservoir
         weight = 0.f;
         pathFlags.flags = 0;
         F = 0.f;
-
-        // set rcVertex as invalid
-        rcVertexHit.instanceID = 0xffffffff;
     }
 
     static float toScalar(float3 color)
@@ -258,9 +255,6 @@ struct PathReservoir
             pathFlags = inReservoir.pathFlags;
             cachedJacobian = inReservoir.cachedJacobian;
             lightPdf = inReservoir.lightPdf;
-            rcVertexWi[0] = inReservoir.rcVertexWi[0];
-            rcVertexHit = inReservoir.rcVertexHit;
-            rcVertexIrradiance[0] = inReservoir.rcVertexIrradiance[0];
 
             F = in_F;
             return true;
@@ -286,9 +280,6 @@ struct PathReservoir
             pathFlags = inReservoir.pathFlags;
             cachedJacobian = inReservoir.cachedJacobian;
             lightPdf = inReservoir.lightPdf;
-            rcVertexWi[0] = inReservoir.rcVertexWi[0];
-            rcVertexHit = inReservoir.rcVertexHit;
-            rcVertexIrradiance[0] = inReservoir.rcVertexIrradiance[0];
 
             F = in_F;
             return true;
@@ -316,9 +307,6 @@ struct PathReservoir
             pathFlags = inReservoir.pathFlags;
             cachedJacobian = inReservoir.cachedJacobian;
             lightPdf = inReservoir.lightPdf;
-            rcVertexWi[0] = inReservoir.rcVertexWi[0];
-            rcVertexHit = inReservoir.rcVertexHit;
-            rcVertexIrradiance[0] = inReservoir.rcVertexIrradiance[0];
 
             F = inReservoir.F;
             return true;

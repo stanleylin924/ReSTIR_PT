@@ -19,8 +19,6 @@ static const int kRcWiCount = 1;
 /// Builds a Path and a PathPrefix.
 struct PathBuilder
 {
-    TriMeshHitInfo rcVertexHit;
-    float3 rcVertexWi[kRcWiCount];
     TinyUniformSampleGenerator sg;
     ReSTIRPathFlags pathFlags;
     float3 cachedJacobian = 1.f;
@@ -29,8 +27,6 @@ struct PathBuilder
     void init<S : ISampleGenerator>(inout S sg)
     {
         this.sg = TinyUniformSampleGenerator(jenkinsHash(sg.next()));
-        rcVertexWi[0] = float3(0.f);
-        rcVertexHit.instanceID = 0xffffffff;
     }
 
     void finalize(inout PathReservoir pathReservoir)
@@ -52,10 +48,7 @@ struct PathBuilder
                 pathReservoir.pathFlags = pathFlags;
                 pathReservoir.pathFlags.insertPathLength(pathLength); // excluding the NEE vertex
                 pathReservoir.pathFlags.insertLastVertexNEE(true);
-                pathReservoir.rcVertexIrradiance[0] = postfixWeight;
                 pathReservoir.F = pathWeight;
-                pathReservoir.rcVertexWi[0] = rcVertexWi[0];
-                pathReservoir.rcVertexHit = rcVertexHit;
 
                 pathReservoir.cachedJacobian = cachedJacobian;
 

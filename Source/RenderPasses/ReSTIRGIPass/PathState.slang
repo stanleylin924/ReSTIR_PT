@@ -79,7 +79,6 @@ struct PathState
     HitInfo     hit;                ///< Hit information for the scatter ray. This is populated at committed triangle hits.
 
     float3      thp;                ///< Path throughput.
-    float3      prefixThp;          /// daqi: used for computing rcVertexIrradiance[1]
 
     float3      rcVertexPathTreeIrradiance;
 
@@ -102,8 +101,7 @@ struct PathState
     bool     isLastVertexClassifiedAsRough; // daqi: remembers if last vertex is classified as a diffuse vertex (used for specularskip in hybrid shift)
 
     // Accessors
-    float3 getCurrentThp() { return thp * prefixThp; }
-    [mutating] void recordPrefixThp() { prefixThp *= thp; thp = 1.f; }
+    float3 getCurrentThp() { return thp; }
 
     bool isTerminated() { return !isActive(); }
     bool isActive() { return hasFlag(PathFlags::active); }
