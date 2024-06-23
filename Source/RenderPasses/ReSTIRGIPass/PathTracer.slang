@@ -276,13 +276,6 @@ struct PathTracer
             // this is pdfAll
             path.pdf = pdfAll;
 
-            // daqi: save the Jacobian for rcVertex
-            if (path.length == path.pathBuilder.rcVertexLength)
-            {
-                // TODO: use component PDF
-                path.pathBuilder.cachedJacobian.y = result.pdf;
-            }
-
             path.prevScatterPdf = result.pdf;
 
             if (result.pdf <= 0.f) // invalid
@@ -326,15 +319,6 @@ struct PathTracer
                 path.setSpecularBounce();
             }
 
-            // daqi: record delta and transmission event before/after rcVertex, this is important because such information will be used in computing the Jacobian in shift.slang
-            if (path.length == path.pathBuilder.rcVertexLength)
-            {
-                path.pathBuilder.pathFlags.insertIsDeltaEvent(result.isLobe(LobeType::Delta), false);
-                path.pathBuilder.pathFlags.insertIsTransmissionEvent(result.isLobe(LobeType::Transmission), false);
-                if (kSeparatePathBSDF)
-                    path.pathBuilder.pathFlags.insertIsSpecularBounce(path.isSpecularBounce(), false);
-            }
-
             // Handle transmission events.
             if (result.isLobe(LobeType::Transmission))
             {
@@ -358,13 +342,6 @@ struct PathTracer
 
             // Mark the path as valid only if it has a non-zero throughput.
             valid = any(path.thp > 0.f);
-            // Add to the path gaph.
-            // TODO: Handle specular/delta/transmission events.
-            if (valid)
-            {
-                if (path.length <= path.pathBuilder.rcVertexLength)
-                    path.recordPrefixThp();
-            }
         }
         else
         {
@@ -425,11 +402,6 @@ struct PathTracer
 
             path.pdf = pdfAll;
 
-            if (path.length == path.pathBuilder.rcVertexLength)
-            {
-                path.pathBuilder.cachedJacobian.y = result.pdf;
-            }
-
             // daqi: record the scatter pdf, we will need to use that later for the cachedJacobian
             path.prevScatterPdf = result.pdf;
 
@@ -471,14 +443,6 @@ struct PathTracer
 
             // Mark the path as valid only if it has a non-zero throughput.
             valid = any(path.thp > 0.f);
-
-            // Add to the path gaph.
-            // TODO: Handle specular/delta/transmission events.
-            if (valid)
-            {
-                if (path.length <= path.pathBuilder.rcVertexLength)
-                    path.recordPrefixThp();
-            }
         }
 
         return valid;
@@ -1060,10 +1024,6 @@ struct PathTracer
         // daqi: if we are not doing a hybrid shift replay, we should check if current vertex satisfy the condition to be used as a rcVertex
         if (PathSamplingMode(kPathSamplingMode) != PathSamplingMode::PathTracing)
         {
-            bool canConnect = (path.length >= 1 && path.length < path.pathBuilder.rcVertexLength &&
-                (!(params.localStrategyType & (uint)LocalStrategy::DistanceCondition && !isFarField ||
-                        params.localStrategyType & (uint)LocalStrategy::RoughnessCondition && !(isCurrentVertexClassifiedAsRough && isLastVertexAcceptableForRcPrev))));
-
             if (path.length == 1)
             {
                 is_rcVertex = true;
@@ -1079,12 +1039,6 @@ struct PathTracer
 
                 // daqi: save geometry term as part of cachedJacobian
                 path.pathBuilder.cachedJacobian.z = abs(dot(sd.faceN, sd.V)) / dot(disp, disp);
-
-                // daqi: save the current path length as the rcVertex length
-                if (canConnect)
-                {
-                    path.pathBuilder.rcVertexLength = path.length;
-                }
             }
         }
 
@@ -1096,12 +1050,6 @@ struct PathTracer
             // generate kNEESamples light samples
             if (sampleLights)
             {
-                // cache (NEE sampling) seed for temporal validation (only possible for non early direction reuse since it uses the cachedRandomSeed slot)
-                if (path.length == path.pathBuilder.rcVertexLength)
-                {
-                    path.pathBuilder.cachedRandomSeed = path.sg.getCurrentSeed();
-                }
-
                 LightSample ls;
                 bool validSample = true;
                 {
@@ -1184,20 +1132,8 @@ struct PathTracer
         // Temporary keep path throughput from before the scatter event.
         float3 prevThp = path.getCurrentThp();
 
-        if (path.length == 0)
-        {
-            // daqi: save current random seed, this is required to do random number replay to construct a path
-            path.pathReservoir.initRandomSeed = path.sg.getCurrentSeed();
-        }
-
         // Generate the next path segment or terminate.
         bool valid = generateScatterRay(sd, path);
-
-        // cache seed for temporal validation (only possible for non early direction reuse since it uses the cachedRandomSeed slot)
-        if (path.length == path.pathBuilder.rcVertexLength)
-        {
-            path.pathBuilder.cachedRandomSeed = path.sg.getCurrentSeed();
-        }
 
         // daqi: save the incoming direction on rcVertex
         if (is_rcVertex && valid && (int(path.length > 1) == 0 || true))

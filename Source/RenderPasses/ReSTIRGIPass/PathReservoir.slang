@@ -91,22 +91,9 @@ struct ReSTIRPathFlags
         flags |= pathLength & 0xF;
     }
 
-    // maximum length: 15
-    [mutating]
-    void insertRcVertexLength(int rcVertexLength)
-    {
-        flags &= ~0xF0;
-        flags |= (rcVertexLength & 0xF) << 4;
-    }
-
     int pathLength()
     {
         return flags & 0xF;
-    }
-
-    int rcVertexLength()
-    {
-        return (flags >> 4) & 0xF;
     }
 
     [mutating]
@@ -206,7 +193,6 @@ struct PathReservoir
         M = 0.f;
         weight = 0.f;
         pathFlags.flags = 0;
-        pathFlags.insertRcVertexLength(kMaximumPathLength);
         F = 0.f;
 
         // set rcVertex as invalid
@@ -270,8 +256,6 @@ struct PathReservoir
         if (forceAdd || sampleNext1D(sg) * weight <= w)
         {
             pathFlags = inReservoir.pathFlags;
-            rcRandomSeed = inReservoir.rcRandomSeed;
-            initRandomSeed = inReservoir.initRandomSeed;
             cachedJacobian = inReservoir.cachedJacobian;
             lightPdf = inReservoir.lightPdf;
             rcVertexWi[0] = inReservoir.rcVertexWi[0];
@@ -300,8 +284,6 @@ struct PathReservoir
         if (forceAdd || sampleNext1D(sg) * weight <= w)
         {
             pathFlags = inReservoir.pathFlags;
-            rcRandomSeed = inReservoir.rcRandomSeed;
-            initRandomSeed = inReservoir.initRandomSeed;
             cachedJacobian = inReservoir.cachedJacobian;
             lightPdf = inReservoir.lightPdf;
             rcVertexWi[0] = inReservoir.rcVertexWi[0];
@@ -332,8 +314,6 @@ struct PathReservoir
         if (sampleNext1D(sg) * weight <= w)
         {
             pathFlags = inReservoir.pathFlags;
-            rcRandomSeed = inReservoir.rcRandomSeed;
-            initRandomSeed = inReservoir.initRandomSeed;
             cachedJacobian = inReservoir.cachedJacobian;
             lightPdf = inReservoir.lightPdf;
             rcVertexWi[0] = inReservoir.rcVertexWi[0];

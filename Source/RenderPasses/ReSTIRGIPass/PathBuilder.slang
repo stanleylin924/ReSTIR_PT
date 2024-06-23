@@ -21,9 +21,7 @@ struct PathBuilder
 {
     TriMeshHitInfo rcVertexHit;
     float3 rcVertexWi[kRcWiCount];
-    uint cachedRandomSeed;
     TinyUniformSampleGenerator sg;
-    int rcVertexLength = kMaximumPathLength;
     ReSTIRPathFlags pathFlags;
     float3 cachedJacobian = 1.f;
 
@@ -48,14 +46,11 @@ struct PathBuilder
 
         if (pathLength >= 1)
         {
-            bool is_rcVertex = pathLength == rcVertexLength;
-
             if (forceAdd || pathReservoir.add(pathWeight, russianroulettePDF, sg))
             {
                 selected = true;
                 pathReservoir.pathFlags = pathFlags;
                 pathReservoir.pathFlags.insertPathLength(pathLength); // excluding the NEE vertex
-                pathReservoir.pathFlags.insertRcVertexLength(rcVertexLength);
                 pathReservoir.pathFlags.insertLastVertexNEE(true);
                 pathReservoir.rcVertexIrradiance[0] = postfixWeight;
                 pathReservoir.F = pathWeight;
@@ -64,13 +59,6 @@ struct PathBuilder
 
                 pathReservoir.cachedJacobian = cachedJacobian;
 
-                pathReservoir.rcRandomSeed = cachedRandomSeed;
-
-                if (is_rcVertex) // at rcVertex
-                {
-                    pathReservoir.rcVertexIrradiance[0] = pathReservoir.rcVertexIrradiance[0] * lightPdf / misWeight;
-                    pathReservoir.rcVertexWi[0] = wi;
-                }
                 pathReservoir.lightPdf = lightPdf;
                 pathReservoir.pathFlags.insertLightType(lightType);
             }
