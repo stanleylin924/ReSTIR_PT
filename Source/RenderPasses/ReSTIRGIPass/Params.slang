@@ -66,38 +66,6 @@ static const uint kMaxFrameDimension = 4096;        ///< Maximum supported frame
 static const uint kMaxBounces = 14;                ///< Maximum supported number of bounces per bounce category (value 255 is reserved for internal use). The resulting path length may be longer than this.
 static const uint kMaxLightSamplesPerVertex = 8;    ///< Maximum number of shadow rays per path vertex for next-event estimation.
 
-enum class ShiftMapping
-#ifdef HOST_CODE
-    : uint32_t
-#endif
-{
-    Reconnection = 0,
-    RandomReplay = 1,
-    Hybrid = 2,
-};
-
-enum class LocalStrategy
-#ifdef HOST_CODE
-    : uint32_t
-#endif
-{
-    None = 0x0,
-    RoughnessCondition = 0x1,
-    DistanceCondition = 0x2,
-};
-
-enum class ReSTIRMISKind
-#ifdef HOST_CODE
-    : uint32_t
-#endif
-{
-    Constant = 0,
-    Talbot = 1,
-    Pairwise = 2,
-    ConstantBinary = 3,
-    ConstantBiased = 4
-};
-
 enum class PathSamplingMode
 {
     ReSTIR,
@@ -124,9 +92,6 @@ struct RestirPathTracerParams
     uint2   screenTiles = { 0, 0 };     ///< Number of screen-tiles. Screen tiles may extend outside the frame.
 
     uint    frameCount = 0;             ///< Frames rendered. This is used as random seed.
-    uint    localStrategyType = (uint)LocalStrategy::RoughnessCondition | (uint)LocalStrategy::DistanceCondition;
-    int     rejectShiftBasedOnJacobian = false; // can be helpful for dynamic geometry
-    float   jacobianRejectionThreshold = 10.f;
 
     // params for roughness condition in mixed strategy
     float   specularRoughnessThreshold = 0.2f; ///< Specular reflection events are only classified as specular if the material's roughness value is equal or smaller than this threshold. Otherwise they are classified diffuse.

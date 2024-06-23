@@ -89,9 +89,6 @@ struct PathState
     float3      sharedScatterDir;
     float      prevScatterPdf = 1.f;
 
-    HitInfo rcPrevVertexHit;   // daqi: save the previous vertex of rcVertex, used in hybrid shift replay, for later reconnection
-    float3 rcPrevVertexWo; // daqi: save the outgoing direction at the previous vertex of rcVertex, used in hybrid shift replay, for later reconnection
-
     InteriorList interiorList;      ///< Interior list. Keeping track of a stack of materials with medium properties.
     SampleGenerator sg;             ///< Sample generator state. Typically 4-16B.
 

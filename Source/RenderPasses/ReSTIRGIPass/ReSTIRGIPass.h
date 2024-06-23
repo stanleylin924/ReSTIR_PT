@@ -101,10 +101,6 @@ private:
 
         bool        useDeterministicBSDF = true;                    ///< Evaluate all compatible lobes at BSDF sampling time.
 
-        ReSTIRMISKind    spatialMisKind = ReSTIRMISKind::Pairwise;
-
-        bool            temporalUpdateForDynamicScene = false;
-
         PathSamplingMode pathSamplingMode = PathSamplingMode::ReSTIR;
 
         bool            separatePathBSDF = true;

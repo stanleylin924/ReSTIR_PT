@@ -229,8 +229,6 @@ struct PathTracer
 
     void invalidateAndTerminateReplayPath(inout PathState path)
     {
-        path.rcPrevVertexHit = HitInfo();
-        path.rcPrevVertexWo = float3(0);
         path.L = 0.f;
         path.thp = 0.f;
         path.terminate();

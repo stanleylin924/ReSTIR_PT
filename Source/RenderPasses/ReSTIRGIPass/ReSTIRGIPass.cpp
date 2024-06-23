@@ -66,30 +66,6 @@ namespace
         { (uint32_t)MISHeuristic::PowerExp, "Power heuristic" },
     };
 
-    const Gui::DropdownList kShiftMappingList =
-    {
-        { (uint32_t)ShiftMapping::Reconnection, "Reconnection" },
-        { (uint32_t)ShiftMapping::RandomReplay, "Random Replay" },
-        { (uint32_t)ShiftMapping::Hybrid, "Hybrid" },
-    };
-
-    const Gui::DropdownList kReSTIRMISList =
-    {
-        { (uint32_t)ReSTIRMISKind::Constant , "Constant resampling MIS (with balance-heuristic contribution MIS)" },
-        { (uint32_t)ReSTIRMISKind::Talbot, "Talbot resampling MIS" },
-        { (uint32_t)ReSTIRMISKind::Pairwise, "Pairwise resampling MIS" },
-        { (uint32_t)ReSTIRMISKind::ConstantBinary, "Constant resampling MIS (with 1/|Z| contribution MIS)" },
-        { (uint32_t)ReSTIRMISKind::ConstantBiased, "Constant resampling MIS (constant contribution MIS, biased)" },
-    };
-
-    const Gui::DropdownList kReSTIRMISList2 =
-    {
-        { (uint32_t)ReSTIRMISKind::Constant , "Constant resampling MIS (with balance-heuristic contribution MIS)" },
-        { (uint32_t)ReSTIRMISKind::Talbot, "Talbot resampling MIS" },
-        { (uint32_t)ReSTIRMISKind::ConstantBinary, "Constant resampling MIS (with 1/|Z| contribution MIS)" },
-        { (uint32_t)ReSTIRMISKind::ConstantBiased, "Constant resampling MIS (constant contribution MIS, biased)" },
-    };
-
     const Gui::DropdownList kEmissiveSamplerList =
     {
         { (uint32_t)EmissiveLightSamplerType::Uniform, "Uniform" },
@@ -140,12 +116,7 @@ namespace
     const std::string kLightBVHOptions = "lightBVHOptions";
     const std::string kPrimaryLodMode = "primaryLodMode";
 
-    const std::string kSpatialMisKind = "spatialMisKind";
-    const std::string kTemporalMisKind = "temporalMisKind";
-    const std::string kRejectShiftBasedOnJacobian = "rejectShiftBasedOnJacobian";
-    const std::string kJacobianRejectionThreshold = "jacobianRejectionThreshold";
     const std::string kNearFieldDistance = "nearFieldDistance";
-    const std::string kLocalStrategyType = "localStrategyType";
 
     const std::string kTemporalHistoryLength = "temporalHistoryLength";
     const std::string kUseMaxHistory = "useMaxHistory";
@@ -155,16 +126,12 @@ namespace
     const std::string kNumSpatialRounds = "numSpatialRounds";
     const std::string kPathSamplingMode = "pathSamplingMode";
     const std::string kEnableTemporalReprojection = "enableTemporalReprojection";
-    const std::string kNoResamplingForTemporalReuse = "noResamplingForTemporalReuse";
     const std::string kSpatialNeighborCount = "spatialNeighborCount";
     const std::string kFeatureBasedRejection = "featureBasedRejection";
-    const std::string kSpatialReusePattern = "spatialReusePattern";
-    const std::string kSmallWindowRestirWindowRadius = "smallWindowRestirWindowRadius";
     const std::string kSpatialReuseRadius = "spatialReuseRadius";
     const std::string kUseDirectLighting = "useDirectLighting";
     const std::string kSeparatePathBSDF = "separatePathBSDF";
     const std::string kCandidateSamples = "candidateSamples";
-    const std::string kTemporalUpdateForDynamicScene = "temporalUpdateForDynamicScene";
     const std::string kEnableRayStats = "enableRayStats";
 
     const uint32_t kNeighborOffsetCount = 8192;
@@ -217,18 +184,6 @@ void ReSTIRGIPass::registerBindings(pybind11::module& m)
     //misHeuristic.value("Balance", MISHeuristic::Balance);
     //misHeuristic.value("PowerTwo", MISHeuristic::PowerTwo);
     //misHeuristic.value("PowerExp", MISHeuristic::PowerExp);
-
-    pybind11::enum_<ShiftMapping> shiftMapping(m, "ShiftMapping");
-    shiftMapping.value("Reconnection", ShiftMapping::Reconnection);
-    shiftMapping.value("RandomReplay", ShiftMapping::RandomReplay);
-    shiftMapping.value("Hybrid", ShiftMapping::Hybrid);
-
-    pybind11::enum_<ReSTIRMISKind> misKind(m, "ReSTIRMISKind");
-    misKind.value("Constant", ReSTIRMISKind::Constant);
-    misKind.value("Talbot", ReSTIRMISKind::Talbot);
-    misKind.value("Pairwise", ReSTIRMISKind::Pairwise);
-    misKind.value("ConstantBinary", ReSTIRMISKind::ConstantBinary);
-    misKind.value("ConstantBiased", ReSTIRMISKind::ConstantBiased);
 
     pybind11::enum_<PathSamplingMode> pathSamplingMode(m, "PathSamplingMode");
     pathSamplingMode.value("ReSTIR", PathSamplingMode::ReSTIR);
@@ -358,9 +313,6 @@ bool ReSTIRGIPass::parseDictionary(const Dictionary& dict)
         else if (key == kMISPowerExponent) mStaticParams.misPowerExponent = value;
         else if (key == kEmissiveSampler) mStaticParams.emissiveSampler = value;
         else if (key == kLightBVHOptions) mLightBVHOptions = value;
-        else if (key == kSpatialMisKind) mStaticParams.spatialMisKind = value;
-        else if (key == kRejectShiftBasedOnJacobian) mParams.rejectShiftBasedOnJacobian = value;
-        else if (key == kJacobianRejectionThreshold) mParams.jacobianRejectionThreshold = value;
         else if (key == kNearFieldDistance) mParams.nearFieldDistance = value;
         else if (key == kTemporalHistoryLength) mTemporalHistoryLength = value;
         else if (key == kUseMaxHistory) mUseMaxHistory = value;
@@ -369,7 +321,6 @@ bool ReSTIRGIPass::parseDictionary(const Dictionary& dict)
         else if (key == kEnableSpatialReuse) mEnableSpatialReuse = value;
         else if (key == kNumSpatialRounds) mNumSpatialRounds = value;
         else if (key == kPathSamplingMode) mStaticParams.pathSamplingMode = value;
-        else if (key == kLocalStrategyType) mParams.localStrategyType = value;
         else if (key == kEnableTemporalReprojection) mEnableTemporalReprojection = value;
         else if (key == kSpatialNeighborCount) mSpatialNeighborCount = value;
         else if (key == kFeatureBasedRejection) mFeatureBasedRejection = value;
@@ -377,7 +328,6 @@ bool ReSTIRGIPass::parseDictionary(const Dictionary& dict)
         else if (key == kUseDirectLighting) mUseDirectLighting = value;
         else if (key == kSeparatePathBSDF) mStaticParams.separatePathBSDF = value;
         else if (key == kCandidateSamples) mStaticParams.candidateSamples = value;
-        else if (key == kTemporalUpdateForDynamicScene) mStaticParams.temporalUpdateForDynamicScene = value;
         else if (key == kEnableRayStats) mEnableRayStats = value;
         else logWarning("Unknown field '" + key + "' in ReSTIRGIPass dictionary");
     }
@@ -507,9 +457,6 @@ Dictionary ReSTIRGIPass::getScriptingDictionary()
     d[kMISPowerExponent] = mStaticParams.misPowerExponent;
     d[kEmissiveSampler] = mStaticParams.emissiveSampler;
     if (mStaticParams.emissiveSampler == EmissiveLightSamplerType::LightBVH) d[kLightBVHOptions] = mLightBVHOptions;
-    d[kSpatialMisKind] = mStaticParams.spatialMisKind;
-    d[kRejectShiftBasedOnJacobian] = mParams.rejectShiftBasedOnJacobian;
-    d[kJacobianRejectionThreshold] = mParams.jacobianRejectionThreshold;
     d[kNearFieldDistance] = mParams.nearFieldDistance;
     d[kTemporalHistoryLength] = mTemporalHistoryLength;
     d[kUseMaxHistory] = mUseMaxHistory;
@@ -518,7 +465,6 @@ Dictionary ReSTIRGIPass::getScriptingDictionary()
     d[kEnableSpatialReuse] = mEnableSpatialReuse;
     d[kNumSpatialRounds] = mNumSpatialRounds;
     d[kPathSamplingMode] = mStaticParams.pathSamplingMode;
-    d[kLocalStrategyType] = mParams.localStrategyType;
     d[kEnableTemporalReprojection] = mEnableTemporalReprojection;
     d[kSpatialNeighborCount] = mSpatialNeighborCount;
     d[kFeatureBasedRejection] = mFeatureBasedRejection;
@@ -526,7 +472,6 @@ Dictionary ReSTIRGIPass::getScriptingDictionary()
     d[kUseDirectLighting] = mUseDirectLighting;
     d[kSeparatePathBSDF] = mStaticParams.separatePathBSDF;
     d[kCandidateSamples] = mStaticParams.candidateSamples;
-    d[kTemporalUpdateForDynamicScene] = mStaticParams.temporalUpdateForDynamicScene;
     d[kEnableRayStats] = mEnableRayStats;
 
     return d;
@@ -536,7 +481,6 @@ Dictionary ReSTIRGIPass::getSpecializedScriptingDictionary()
 {
     Dictionary d;
     d[kMaxSurfaceBounces] = mStaticParams.maxSurfaceBounces;
-    d[kSpatialMisKind] = mStaticParams.spatialMisKind;
 
     return d;
 }
@@ -575,11 +519,6 @@ void ReSTIRGIPass::setScene(RenderContext* pRenderContext, const Scene::SharedPt
     if (mpScene)
     {
         if (is_set(pScene->getPrimitiveTypes(), PrimitiveTypeFlags::Custom)) logError("This render pass does not support custom primitives.");
-
-        // check if the scene is dynamic
-        bool enableRobustSettingsByDefault = mpScene->hasAnimation() && mpScene->isAnimated();
-        mParams.rejectShiftBasedOnJacobian = enableRobustSettingsByDefault;
-        mStaticParams.temporalUpdateForDynamicScene = enableRobustSettingsByDefault;
 
         // Prepare our programs for the scene.
         Shader::DefineList defines = mpScene->getSceneDefines();
@@ -783,13 +722,8 @@ bool ReSTIRGIPass::renderRenderingUI(Gui::Widgets& widget)
                 dirty |= widget.var("Num Spatial Rounds", mNumSpatialRounds, 1, 5);
                 dirty |= widget.checkbox("Feature-based rejection", mFeatureBasedRejection);
 
-                {
-                    dirty |= widget.var("Spatial Neighbor Count", mSpatialNeighborCount, 0, 6);
-                    dirty |= widget.var("Spatial Reuse Radius", mSpatialReuseRadius, 0.f, 100.f);
-                }
-
-                dirty |= widget.dropdown("Spatial Resampling MIS Kind", kReSTIRMISList, reinterpret_cast<uint32_t&>(mStaticParams.spatialMisKind));
-                widget.tooltip("Current implementation only support pairwise MIS for hybird shift.\n");
+                dirty |= widget.var("Spatial Neighbor Count", mSpatialNeighborCount, 0, 6);
+                dirty |= widget.var("Spatial Reuse Radius", mSpatialReuseRadius, 0.f, 100.f);
             }
         }
 
@@ -800,7 +734,6 @@ bool ReSTIRGIPass::renderRenderingUI(Gui::Widgets& widget)
                 dirty |= widget.var("Temporal History Length", mTemporalHistoryLength, 0, 100);
                 dirty |= widget.checkbox("Use M capping", mUseMaxHistory);
                 dirty |= widget.checkbox("Temporal Reprojection", mEnableTemporalReprojection);
-                dirty |= widget.checkbox("Temporal Update for Dynamic Scenes", mStaticParams.temporalUpdateForDynamicScene);
             }
         }
     }
@@ -1525,10 +1458,6 @@ Program::DefineList ReSTIRGIPass::StaticParams::getDefines(const ReSTIRGIPass& o
     defines.add("OUTPUT_GUIDE_DATA", "0");
     defines.add("OUTPUT_TIME", "0");
     defines.add("OUTPUT_NRD_ADDITIONAL_DATA", "0");
-
-    defines.add("SPATIAL_RESTIR_MIS_KIND", std::to_string((uint32_t)spatialMisKind));
-
-    defines.add("TEMPORAL_UPDATE_FOR_DYNAMIC_SCENE", temporalUpdateForDynamicScene ? "1" : "0");
 
     defines.add("SEPARATE_PATH_BSDF", separatePathBSDF ? "1" : "0");
 

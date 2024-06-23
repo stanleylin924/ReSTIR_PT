@@ -28,40 +28,10 @@ bool mergeReservoirNoResampling(const RestirPathTracerParams params, inout PathR
     return selected;
 }
 
-bool mergeReservoirWithResamplingMIS(const RestirPathTracerParams params, float3 dstIntegrand, float dstJacobian, inout PathReservoir dstReservoir, const PathReservoir tempDstReservoir, const PathReservoir srcReservoir, inout SampleGenerator sg, bool isSpatialReuse, float misWeight = 1.f)
-{
-    bool selected = dstReservoir.mergeWithResamplingMIS(dstIntegrand, dstJacobian, tempDstReservoir, sg, misWeight);
-    return selected;
-}
-
 bool mergeReservoir(const RestirPathTracerParams params, float3 dstIntegrand, float dstJacobian, inout PathReservoir dstReservoir, const PathReservoir tempDstReservoir, const PathReservoir srcReservoir, inout SampleGenerator sg, bool isSpatialReuse, float misWeight = 1.f)
 {
     bool selected = dstReservoir.merge(dstIntegrand, dstJacobian, tempDstReservoir, sg, misWeight);
     return selected;
-}
-
-/// Evaluates the visibility term to the reconnection vertex from the source vertex.
-bool evalSegmentVisibility(const float3 sourceVertex, const float3 targetVertex, bool isDirection = false)
-{
-    float3 dir;
-    float tMax;
-    if (isDirection)
-    {
-        dir = targetVertex;
-        tMax = kRayTMax;
-    }
-    else
-    {
-        float3 edge = targetVertex - sourceVertex;
-        tMax = length(edge);
-        dir = edge / tMax;
-        tMax *= 0.999f; // prevent intersection with another surface
-    }
-
-    RayDesc ray = { sourceVertex, 0.f, dir, tMax }; // TODO: use offset position instead
-
-    SceneRayQuery<kUseAlphaTest> sceneRayQuery;
-    return sceneRayQuery.traceVisibilityRay(ray, RAY_FLAG_NONE, 0xff);
 }
 
 bool traceVisibilityRay(const Ray ray)

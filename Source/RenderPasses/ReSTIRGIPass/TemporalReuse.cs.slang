@@ -123,8 +123,6 @@ struct PathReusePass
             ShadingData temporalPrimarySd = getPixelTemporalShadingData(prevPixel, temporalPrimaryHitPacked);
             if (!isValidPackedHitInfo(temporalPrimaryHitPacked)) return;
 
-            bool doTemporalUpdateForDynamicScene = kTemporalUpdateForDynamicScene;
-
             PathReservoir temporalReservoir = temporalReservoirs[params.getReservoirOffset(prevPixel)];
 
             temporalReservoir.M = min(gTemporalHistoryLength * currentM, temporalReservoir.M);
@@ -135,8 +133,6 @@ struct PathReusePass
             /// CONSTANT RMIS ///
             /////////////////////
             {
-                float chosen_Jacobian = 1.f;
-
                 bool selected;
 
                 selected = mergeReservoirNoResampling(params, dstReservoir, temporalReservoir, sg);
@@ -144,7 +140,6 @@ struct PathReusePass
                 if (selected)
                 {
                     chooseCurrent = false;
-                    chosen_Jacobian = dstJacobian;
                 }
 
                 dstReservoir.finalizeRIS();
