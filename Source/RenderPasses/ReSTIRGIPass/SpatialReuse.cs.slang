@@ -124,6 +124,7 @@ struct PathReusePass
         {
             uint2 chosenPixel = pixel;
             int chosen_i = -1;
+            float chosen_Jacobian = 1.f;
 
             for (uint i = 0; i < neighborCount; ++i)
             {
@@ -138,12 +139,14 @@ struct PathReusePass
 
                 float dstJacobian;
 
-                bool selected = mergeReservoirNoResampling(params, dstReservoir, neighborReservoir, sg);
+                bool selected = shiftAndMergeReservoir(params, false, dstJacobian, centralPrimaryHitPacked, centralPrimarySd, dstReservoir,
+                    neighborPrimarySd, neighborReservoir, true, sg, true);
 
                 if (selected)
                 {
                     chosen_i = i;
                     chosenPixel = neighborPixel;
+                    chosen_Jacobian = dstJacobian;
                 }
             }
 
