@@ -1052,11 +1052,6 @@ struct PathTracer
         // Check if lights should be sampled.
         bool sampleLights = applyNEE;
 
-        // daqi: when doing random number replay, we will terminate the path when the length reaches the base path length and 
-        // when the path types match. In this case, if the base path is a NEE path (as opposed to an escaped path), we should terminate when we 
-        // find that offset path can also be an NEE path
-        bool terminateRandomReplayForNEE = false;
-
         bool is_rcVertex = false;
 
         bool isFarField = length(path.origin - prevPathOrigin) >= params.nearFieldDistance;
@@ -1093,74 +1088,6 @@ struct PathTracer
                     path.pathBuilder.rcVertexLength = path.length;
                 }
             }
-        }
-        else if (PathSamplingMode(kPathSamplingMode) != PathSamplingMode::PathTracing)
-        {
-            bool invertible = true;
-            bool shouldTerminate = false;
-
-            // daqi: check situation where invertibility is violated
-            if (path.length >= 1 && path.length <= path.pathBuilder.rcVertexLength - 1)
-            {
-                if (kSeparatePathBSDF)
-                {
-                    if (params.localStrategyType & (uint)LocalStrategy::RoughnessCondition)
-                    {
-                        // method 2
-                        //non-invertible if this bounce is an NEE bounce for the base path but the current vertex is not connectible in base path but is connectible in offset path
-                        if (terminateRandomReplayForNEE && isCurrentVertexClassifiedAsRough && isLastVertexAcceptableForRcPrev) invertible = false;
-                        //non-invertible because current vertex will be assigned as a diffuse bounce by connecting to the reconnection vertex
-                        if (path.length == path.pathBuilder.rcVertexLength - 1 && isLastVertexAcceptableForRcPrev) invertible = false;
-
-                        if (params.localStrategyType & (uint)LocalStrategy::DistanceCondition && !isFarField) invertible = true;
-                    }
-                    else
-                    {
-                        if (params.localStrategyType & (uint)LocalStrategy::DistanceCondition && isFarField) invertible = false;
-                    }
-                }
-                else
-                {
-                    if (!(params.localStrategyType & (uint)LocalStrategy::DistanceCondition && !isFarField ||
-                        params.localStrategyType & (uint)LocalStrategy::RoughnessCondition && !(/*supportsNEE &&*/ isCurrentVertexClassifiedAsRough && isLastVertexAcceptableForRcPrev)))
-                        invertible = false;
-                }
-            }
-
-            // daqi: if next vertex is rcVertex and the shift is still invertible, then we should terminate
-            if (path.length == path.pathBuilder.rcVertexLength - 1 && invertible)
-            {
-                // not possible to generate a diffuse bounce
-                if (params.localStrategyType & (uint)LocalStrategy::RoughnessCondition &&
-                        (kSeparatePathBSDF && (path.pathBuilder.pathFlags.decodeIsSpecularBounce(true) ? sd.linearRoughness <= params.specularRoughnessThreshold : !hasRoughComponent(sd, 1.f)) ||
-                        !kSeparatePathBSDF && !isCurrentVertexClassifiedAsRough))
-                {
-                    // daqi: invalidate the shift
-                    invertible = false;
-                }
-                // daqi: near field rejection case is checked in computeShiftedIntegrandReconnection in shift.slang
-                else
-                {
-                    shouldTerminate = true;
-                }
-            }
-
-            if (invertible)
-            {
-                // daqi: if it is invertible and we should terminate, save the hit information to set up a reconnection
-                if (shouldTerminate)
-                {
-                    path.rcPrevVertexHit = path.hit;
-                    path.rcPrevVertexWo = sd.V;
-                    path.terminate();
-                }
-            }
-            else //daqi: if the shift is not invertible, we should mark the case, which causes the shift to terminate when it goes back to shift.slang
-            {
-                invalidateAndTerminateReplayPath(path);
-            }
-
-            if (!path.isActive()) return;
         }
 
         path.setLightSampled(false, false);
@@ -1249,20 +1176,11 @@ struct PathTracer
             }
         }
 
-        // daqi: terminate the path if the bounce of random replay reaches the desired bounce and the base path is an NEE path
-        if (terminateRandomReplayForNEE)
-        {
-            path.terminate();
-            return;
-        }
-
         // Russian roulette to terminate paths early.
         // TODO: check if this is handled correctly in ReSTIR PT
         if (kUseRussianRoulette && path.length >= 1)
         {
-            {
-                if (terminatePathByRussianRoulette(path)) return;
-            }
+            if (terminatePathByRussianRoulette(path)) return;
         }
 
         // Temporary keep path throughput from before the scatter event.
