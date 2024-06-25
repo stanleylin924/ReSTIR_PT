@@ -52,7 +52,6 @@ private:
     void validateOptions();
     void updatePrograms();
     void prepareResources(RenderContext* pRenderContext, const RenderData& renderData);
-    void setNRDData(const ShaderVar& var, const RenderData& renderData) const;
     void preparePathTracer(const RenderData& renderData);
     void resetLighting();
     void prepareMaterials(RenderContext* pRenderContext);
@@ -103,9 +102,7 @@ private:
         bool        useDeterministicBSDF = true;                    ///< Evaluate all compatible lobes at BSDF sampling time.
 
         ReSTIRMISKind    spatialMisKind = ReSTIRMISKind::Pairwise;
-        ReSTIRMISKind    temporalMisKind = ReSTIRMISKind::Talbot;
 
-        ShiftMapping    shiftStrategy = ShiftMapping::Reconnection;
         bool            temporalUpdateForDynamicScene = false;
 
         PathSamplingMode pathSamplingMode = PathSamplingMode::ReSTIR;
@@ -113,9 +110,6 @@ private:
         bool            separatePathBSDF = true;
 
         bool            rcDataOfflineMode = false;
-
-        // Denoising parameters
-        bool        useNRDDemodulation = false;                  ///< Global switch for NRD demodulation.
 
         Program::DefineList getDefines(const ReSTIRGIPass& owner) const;
     };
@@ -137,7 +131,6 @@ private:
         mUseMaxHistory = true;
         mUseDirectLighting = true;
         mTemporalHistoryLength = 20;
-        mNoResamplingForTemporalReuse = false;
     }
 
     // Configuration
@@ -160,7 +153,6 @@ private:
     bool                            mOptionsChanged = false;    ///< True if the config has changed since last frame.
     bool                            mGBufferAdjustShadingNormals = false; ///< True if GBuffer/VBuffer has adjusted shading normals enabled.
     bool                            mOutputTime = false;        ///< True if time data should be generated as output.
-    bool                            mOutputNRDData = false;     ///< True if NRD diffuse/specular data should be generated as outputs.
     bool                            mEnableRayStats = false;      ///< Set to true when the stats tab in the UI is open. This may negatively affect performance.
 
     uint64_t                        mAccumulatedRayCount = 0;
@@ -187,7 +179,6 @@ private:
     bool                            mUseDirectLighting = true;
 
     int                             mTemporalHistoryLength = 20;
-    bool                            mNoResamplingForTemporalReuse = false;
     int                             mSeedOffset = 0;
 
 
@@ -195,10 +186,6 @@ private:
 
     ComputePass::SharedPtr          mpSpatialReusePass;      ///< Merges reservoirs.
     ComputePass::SharedPtr          mpTemporalReusePass;      ///< Merges reservoirs.
-    ComputePass::SharedPtr          mpComputePathReuseMISWeightsPass;
-
-    ComputePass::SharedPtr          mpSpatialPathRetracePass;
-    ComputePass::SharedPtr          mpTemporalPathRetracePass;
 
     ComputePass::SharedPtr          mpGeneratePaths;                ///< Fullscreen compute pass generating paths starting at primary hits.
     ComputePass::SharedPtr          mpTracePass;                    ///< Main tracing pass.

@@ -14,9 +14,6 @@ namespace
     const std::string kReflectTypesFile = "RenderPasses/ReSTIRGIPass/ReflectTypes.cs.slang";
     const std::string kSpatialReusePassFile = "RenderPasses/ReSTIRGIPass/SpatialReuse.cs.slang";
     const std::string kTemporalReusePassFile = "RenderPasses/ReSTIRGIPass/TemporalReuse.cs.slang";
-    const std::string kSpatialPathRetraceFile = "RenderPasses/ReSTIRGIPass/SpatialPathRetrace.cs.slang";
-    const std::string kTemporalPathRetraceFile = "RenderPasses/ReSTIRGIPass/TemporalPathRetrace.cs.slang";
-    const std::string kComputePathReuseMISWeightsFile = "RenderPasses/ReSTIRGIPass/ComputePathReuseMISWeights.cs.slang";
 
     // Render pass inputs and outputs.
     const std::string kInputVBuffer = "vbuffer";
@@ -40,13 +37,6 @@ namespace
     const std::string kOutputPathLength = "pathLength";
     const std::string kOutputDebug = "debug";
     const std::string kOutputTime = "time";
-    const std::string kOutputNRDDiffuseRadianceHitDist = "nrdDiffuseRadianceHitDist";
-    const std::string kOutputNRDSpecularRadianceHitDist = "nrdSpecularRadianceHitDist";
-    const std::string kOutputNRDResidualRadianceHitDist = "nrdResidualRadianceHitDist";
-    const std::string kOutputNRDEmission = "nrdEmission";
-    const std::string kOutputNRDDiffuseReflectance = "nrdDiffuseReflectance";
-    const std::string kOutputNRDSpecularReflectance = "nrdSpecularReflectance";
-
 
     const Falcor::ChannelList kOutputChannels =
     {
@@ -60,12 +50,6 @@ namespace
         { kOutputSpecularAlbedo,                "gOutputSpecularAlbedo",                "Output specular albedo (linear)", true /* optional */, ResourceFormat::RGBA8Unorm },
         { kOutputIndirectAlbedo,                "gOutputIndirectAlbedo",                "Output indirect albedo (linear)", true /* optional */, ResourceFormat::RGBA8Unorm },
         { kOutputReflectionPosW,                "gOutputReflectionPosW",                "Output reflection pos (world space)", true /* optional */, ResourceFormat::RGBA32Float },
-        { kOutputNRDDiffuseRadianceHitDist,     "gOutputNRDDiffuseRadianceHitDist",     "Output demodulated diffuse color (linear) and hit distance", true /* optional */, ResourceFormat::RGBA32Float },
-        { kOutputNRDSpecularRadianceHitDist,    "gOutputNRDSpecularRadianceHitDist",    "Output demodulated specular color (linear) and hit distance", true /* optional */, ResourceFormat::RGBA32Float },
-        { kOutputNRDResidualRadianceHitDist,    "gOutputNRDResidualRadianceHitDist",    "Output residual color (linear) and hit distance", true /* optional */, ResourceFormat::RGBA32Float },
-        { kOutputNRDEmission,                   "gOutputNRDEmission",                   "Output primary surface emission", true /* optional */, ResourceFormat::RGBA32Float },
-        { kOutputNRDDiffuseReflectance,         "gOutputNRDDiffuseReflectance",         "Output primary surface diffuse reflectance", true /* optional */, ResourceFormat::RGBA16Float },
-        { kOutputNRDSpecularReflectance,        "gOutputNRDSpecularReflectance",        "Output primary surface specular reflectance", true /* optional */, ResourceFormat::RGBA16Float },
     };
 
     // UI variables.
@@ -134,8 +118,7 @@ namespace
 
     const Gui::DropdownList kPathSamplingModeList =
     {
-        { (uint32_t)PathSamplingMode::ReSTIR, "ReSTIR PT" },
-        { (uint32_t)PathSamplingMode::PathReuse, "Bekaert-style Path Reuse" },
+        { (uint32_t)PathSamplingMode::ReSTIR, "ReSTIR GI" },
         { (uint32_t)PathSamplingMode::PathTracing, "Path Tracing" }
     };
 
@@ -169,11 +152,9 @@ namespace
     const std::string kEmissiveSampler = "emissiveSampler";
     const std::string kLightBVHOptions = "lightBVHOptions";
     const std::string kPrimaryLodMode = "primaryLodMode";
-    const std::string kUseNRDDemodulation = "useNRDDemodulation";
 
     const std::string kSpatialMisKind = "spatialMisKind";
     const std::string kTemporalMisKind = "temporalMisKind";
-    const std::string kShiftStrategy = "shiftStrategy";
     const std::string kRejectShiftBasedOnJacobian = "rejectShiftBasedOnJacobian";
     const std::string kJacobianRejectionThreshold = "jacobianRejectionThreshold";
     const std::string kNearFieldDistance = "nearFieldDistance";
@@ -264,7 +245,6 @@ void ReSTIRGIPass::registerBindings(pybind11::module& m)
 
     pybind11::enum_<PathSamplingMode> pathSamplingMode(m, "PathSamplingMode");
     pathSamplingMode.value("ReSTIR", PathSamplingMode::ReSTIR);
-    pathSamplingMode.value("PathReuse", PathSamplingMode::PathReuse);
     pathSamplingMode.value("PathTracing", PathSamplingMode::PathTracing);
 
     pybind11::enum_<SpatialReusePattern> spatialReusePattern(m, "SpatialReusePattern");
@@ -341,18 +321,6 @@ ReSTIRGIPass::ReSTIRGIPass(const Dictionary& dict)
 
     {
         Program::Desc desc;
-        desc.addShaderLibrary(kSpatialPathRetraceFile).csEntry("main").setShaderModel("6_5");
-        mpSpatialPathRetracePass = ComputePass::create(desc, defines, false);
-    }
-
-    {
-        Program::Desc desc;
-        desc.addShaderLibrary(kTemporalPathRetraceFile).csEntry("main").setShaderModel("6_5");
-        mpTemporalPathRetracePass = ComputePass::create(desc, defines, false);
-    }
-
-    {
-        Program::Desc desc;
         desc.addShaderLibrary(kSpatialReusePassFile).csEntry("main").setShaderModel("6_5");
         mpSpatialReusePass = ComputePass::create(desc, defines, false);
     }
@@ -361,12 +329,6 @@ ReSTIRGIPass::ReSTIRGIPass(const Dictionary& dict)
         Program::Desc desc;
         desc.addShaderLibrary(kTemporalReusePassFile).csEntry("main").setShaderModel("6_5");
         mpTemporalReusePass = ComputePass::create(desc, defines, false);
-    }
-
-    {
-        Program::Desc desc;
-        desc.addShaderLibrary(kComputePathReuseMISWeightsFile).csEntry("main").setShaderModel("6_5");
-        mpComputePathReuseMISWeightsPass = ComputePass::create(desc, defines, false);
     }
 
     // Allocate resources that don't change in size.
@@ -408,15 +370,12 @@ bool ReSTIRGIPass::parseDictionary(const Dictionary& dict)
         else if (key == kDisableDirectIllumination) mStaticParams.disableDirectIllumination = value;
         else if (key == kPrimaryLodMode)  mStaticParams.primaryLodMode = value;
         // Denoising parameters
-        else if (key == kUseNRDDemodulation) mStaticParams.useNRDDemodulation = value;
         else if (key == kColorFormat) mStaticParams.colorFormat = value;
         else if (key == kMISHeuristic) mStaticParams.misHeuristic = value;
         else if (key == kMISPowerExponent) mStaticParams.misPowerExponent = value;
         else if (key == kEmissiveSampler) mStaticParams.emissiveSampler = value;
         else if (key == kLightBVHOptions) mLightBVHOptions = value;
         else if (key == kSpatialMisKind) mStaticParams.spatialMisKind = value;
-        else if (key == kTemporalMisKind) mStaticParams.temporalMisKind = value;
-        else if (key == kShiftStrategy) mStaticParams.shiftStrategy = value;
         else if (key == kRejectShiftBasedOnJacobian) mParams.rejectShiftBasedOnJacobian = value;
         else if (key == kJacobianRejectionThreshold) mParams.jacobianRejectionThreshold = value;
         else if (key == kNearFieldDistance) mParams.nearFieldDistance = value;
@@ -429,7 +388,6 @@ bool ReSTIRGIPass::parseDictionary(const Dictionary& dict)
         else if (key == kPathSamplingMode) mStaticParams.pathSamplingMode = value;
         else if (key == kLocalStrategyType) mParams.localStrategyType = value;
         else if (key == kEnableTemporalReprojection) mEnableTemporalReprojection = value;
-        else if (key == kNoResamplingForTemporalReuse) mNoResamplingForTemporalReuse = value;
         else if (key == kSpatialNeighborCount) mSpatialNeighborCount = value;
         else if (key == kFeatureBasedRejection) mFeatureBasedRejection = value;
         else if (key == kSpatialReusePattern) mSpatialReusePattern = value;
@@ -569,8 +527,6 @@ Dictionary ReSTIRGIPass::getScriptingDictionary()
     d[kEmissiveSampler] = mStaticParams.emissiveSampler;
     if (mStaticParams.emissiveSampler == EmissiveLightSamplerType::LightBVH) d[kLightBVHOptions] = mLightBVHOptions;
     d[kSpatialMisKind] = mStaticParams.spatialMisKind;
-    d[kTemporalMisKind] = mStaticParams.temporalMisKind;
-    d[kShiftStrategy] = mStaticParams.shiftStrategy;
     d[kRejectShiftBasedOnJacobian] = mParams.rejectShiftBasedOnJacobian;
     d[kJacobianRejectionThreshold] = mParams.jacobianRejectionThreshold;
     d[kNearFieldDistance] = mParams.nearFieldDistance;
@@ -583,7 +539,6 @@ Dictionary ReSTIRGIPass::getScriptingDictionary()
     d[kPathSamplingMode] = mStaticParams.pathSamplingMode;
     d[kLocalStrategyType] = mParams.localStrategyType;
     d[kEnableTemporalReprojection] = mEnableTemporalReprojection;
-    d[kNoResamplingForTemporalReuse] = mNoResamplingForTemporalReuse;
     d[kSpatialNeighborCount] = mSpatialNeighborCount;
     d[kFeatureBasedRejection] = mFeatureBasedRejection;
     d[kSpatialReusePattern] = mSpatialReusePattern;
@@ -594,8 +549,6 @@ Dictionary ReSTIRGIPass::getScriptingDictionary()
     d[kCandidateSamples] = mStaticParams.candidateSamples;
     d[kTemporalUpdateForDynamicScene] = mStaticParams.temporalUpdateForDynamicScene;
     d[kEnableRayStats] = mEnableRayStats;
-    // Denoising parameters
-    d[kUseNRDDemodulation] = mStaticParams.useNRDDemodulation;
 
     return d;
 }
@@ -605,8 +558,6 @@ Dictionary ReSTIRGIPass::getSpecializedScriptingDictionary()
     Dictionary d;
     d[kMaxSurfaceBounces] = mStaticParams.maxSurfaceBounces;
     d[kSpatialMisKind] = mStaticParams.spatialMisKind;
-    d[kTemporalMisKind] = mStaticParams.temporalMisKind;
-    d[kShiftStrategy] = mStaticParams.shiftStrategy;
 
     return d;
 }
@@ -658,12 +609,8 @@ void ReSTIRGIPass::setScene(RenderContext* pRenderContext, const Scene::SharedPt
         mpTracePass->getProgram()->addDefines(defines);
         mpReflectTypes->getProgram()->addDefines(defines);
 
-        mpSpatialPathRetracePass->getProgram()->addDefines(defines);
-        mpTemporalPathRetracePass->getProgram()->addDefines(defines);
-
         mpSpatialReusePass->getProgram()->addDefines(defines);
         mpTemporalReusePass->getProgram()->addDefines(defines);
-        mpComputePathReuseMISWeightsPass->getProgram()->addDefines(defines);
 
         validateOptions();
 
@@ -680,18 +627,6 @@ void ReSTIRGIPass::execute(RenderContext* pRenderContext, const RenderData& rend
 
     bool skipTemporalReuse = mReservoirFrameCount == 0;
     if (mStaticParams.pathSamplingMode != PathSamplingMode::ReSTIR) mStaticParams.candidateSamples = 1;
-    if (mStaticParams.pathSamplingMode == PathSamplingMode::PathReuse)
-    {
-        mStaticParams.shiftStrategy = ShiftMapping::Reconnection;
-        mEnableSpatialReuse = true;
-    }
-    if (mStaticParams.shiftStrategy == ShiftMapping::Hybrid)
-    {
-        // the ray tracing pass happens before spatial/temporal reuse,
-        // so currently hybrid shift is only implemented for Pairwise and Talbot
-        mStaticParams.spatialMisKind = ReSTIRMISKind::Pairwise;
-        mStaticParams.temporalMisKind = ReSTIRMISKind::Talbot;
-    }
 
     uint32_t numPasses = mStaticParams.pathSamplingMode == PathSamplingMode::PathTracing ? 1 : mStaticParams.samplesPerPixel;
 
@@ -740,15 +675,8 @@ void ReSTIRGIPass::execute(RenderContext* pRenderContext, const RenderData& rend
             {
                 if (mEnableTemporalReuse && !skipTemporalReuse)
                 {
-                    if (mStaticParams.shiftStrategy == ShiftMapping::Hybrid)
-                        PathRetracePass(pRenderContext, restir_i, renderData, true, 0);
-                    // a separate pass to trace rays for hybrid shift/random number replay
                     PathReusePass(pRenderContext, restir_i, renderData, true, 0, !mEnableSpatialReuse);
                 }
-            }
-            else if (mStaticParams.pathSamplingMode == PathSamplingMode::PathReuse)
-            {
-                PathReusePass(pRenderContext, restir_i, renderData, false, -1, false);
             }
 
             if (mEnableSpatialReuse)
@@ -756,9 +684,6 @@ void ReSTIRGIPass::execute(RenderContext* pRenderContext, const RenderData& rend
                 // multiple rounds?
                 for (int spatialRoundId = 0; spatialRoundId < mNumSpatialRounds; spatialRoundId++)
                 {
-                    // a separate pass to trace rays for hybrid shift/random number replay
-                    if (mStaticParams.shiftStrategy == ShiftMapping::Hybrid)
-                        PathRetracePass(pRenderContext, restir_i, renderData, false, spatialRoundId);
                     PathReusePass(pRenderContext, restir_i, renderData, false, spatialRoundId, spatialRoundId == mNumSpatialRounds - 1);
                 }
             }
@@ -848,12 +773,7 @@ bool ReSTIRGIPass::renderRenderingUI(Gui::Widgets& widget)
     bool pathSamplingModeChanged = widget.dropdown("Path Sampling Mode", kPathSamplingModeList, reinterpret_cast<uint32_t&>(mStaticParams.pathSamplingMode));
     if (pathSamplingModeChanged)
     {
-        if (mStaticParams.pathSamplingMode == PathSamplingMode::PathReuse)
-        {
-            mStaticParams.shiftStrategy = ShiftMapping::Reconnection;
-            mStaticParams.separatePathBSDF = false;
-        }
-        else mStaticParams.separatePathBSDF = true;
+        mStaticParams.separatePathBSDF = true;
     }
 
     if (auto group = widget.group("Path Reuse Controls", true))
@@ -869,44 +789,6 @@ bool ReSTIRGIPass::renderRenderingUI(Gui::Widgets& widget)
 
             dirty |= widget.var("Candidate Samples", mStaticParams.candidateSamples, 1u, 64u);
             widget.tooltip("Number candidate samples for ReSTIR PT.\n");
-
-            if (auto group = widget.group("Shift Mapping Options", true))
-            {
-                if (widget.dropdown("Shift Mapping", kShiftMappingList, reinterpret_cast<uint32_t&>(mStaticParams.shiftStrategy)))
-                {
-                    dirty = true;
-                }
-
-                dirty |= widget.checkbox("Reject Shift based on Jacobian (unbiased)", mParams.rejectShiftBasedOnJacobian);
-
-                if (mParams.rejectShiftBasedOnJacobian)
-                {
-                    dirty |= widget.var("Shift rejection jacobian threshold", mParams.jacobianRejectionThreshold, 0.f, 100.f);
-                }
-            }
-        }
-
-        if (mStaticParams.pathSamplingMode == PathSamplingMode::ReSTIR && mStaticParams.shiftStrategy == ShiftMapping::Hybrid)
-        {
-            if (auto group = widget.group("Local Strategies", true))
-            {
-                bool enableRoughnessCondition = mParams.localStrategyType & (uint32_t)LocalStrategy::RoughnessCondition;
-                bool enableDistanceCondition = mParams.localStrategyType & (uint32_t)LocalStrategy::DistanceCondition;
-
-                dirty |= widget.checkbox("Roughness Condition", enableRoughnessCondition);
-                dirty |= widget.checkbox("Distance Condition", enableDistanceCondition);
-
-                if (dirty)
-                {
-                    mParams.localStrategyType = enableDistanceCondition << ((uint32_t)LocalStrategy::DistanceCondition - 1) | enableRoughnessCondition << ((uint32_t)LocalStrategy::RoughnessCondition - 1);
-                }
-            }
-
-            if (auto group = widget.group("Classification thresholds", true))
-            {
-                dirty |= widget.var("Near field distance", mParams.nearFieldDistance, 0.f, 100.f);
-                dirty |= widget.var("Specular roughness threshold", mParams.specularRoughnessThreshold, 0.f, 1.f);
-            }
         }
 
         if (mStaticParams.pathSamplingMode == PathSamplingMode::ReSTIR)
@@ -915,11 +797,7 @@ bool ReSTIRGIPass::renderRenderingUI(Gui::Widgets& widget)
             dirty |= widget.checkbox("Temporal Reuse", mEnableTemporalReuse);
         }
 
-        if (mStaticParams.pathSamplingMode == PathSamplingMode::PathReuse)
-        {
-            dirty |= widget.dropdown("Bekaert-Style Path Reuse Pattern", kPathReusePatternList, reinterpret_cast<uint32_t&>(mPathReusePattern));
-        }
-        else if (mStaticParams.pathSamplingMode == PathSamplingMode::ReSTIR && mEnableSpatialReuse)
+        if (mStaticParams.pathSamplingMode == PathSamplingMode::ReSTIR && mEnableSpatialReuse)
         {
             if (auto group = widget.group("Spatial reuse controls", true))
             {
@@ -950,10 +828,6 @@ bool ReSTIRGIPass::renderRenderingUI(Gui::Widgets& widget)
                 dirty |= widget.checkbox("Use M capping", mUseMaxHistory);
                 dirty |= widget.checkbox("Temporal Reprojection", mEnableTemporalReprojection);
                 dirty |= widget.checkbox("Temporal Update for Dynamic Scenes", mStaticParams.temporalUpdateForDynamicScene);
-                widget.tooltip("Resample cached radiance in reconnection vertex in temporal reservoir for dynamic scenes (eliminate lags).");
-                dirty |= widget.checkbox("Disable Resampling in Temporal Reuse", mNoResamplingForTemporalReuse);
-                dirty |= widget.dropdown("Temporal Resampling MIS Kind", kReSTIRMISList2, reinterpret_cast<uint32_t&>(mStaticParams.temporalMisKind));
-                widget.tooltip("Current implementation only support Talbot MIS for hybird shift.\n");
             }
         }
     }
@@ -1098,12 +972,6 @@ bool ReSTIRGIPass::renderRenderingUI(Gui::Widgets& widget)
         dirty |= widget.var("TexLOD bias", mParams.lodBias, -16.f, 16.f, 0.01f);
     }
 
-    if (auto group = widget.group("Denoiser options"))
-    {
-        dirty |= widget.checkbox("Use NRD demodulation", mStaticParams.useNRDDemodulation);
-        widget.tooltip("Global switch for NRD demodulation");
-    }
-
     if (auto group = widget.group("Output options"))
     {
         dirty |= widget.dropdown("Color format", kColorFormatList, (uint32_t&)mStaticParams.colorFormat);
@@ -1154,7 +1022,7 @@ void ReSTIRGIPass::updatePrograms()
 {
     if (mRecompile == false) return;
 
-    mStaticParams.rcDataOfflineMode = mSpatialNeighborCount > 3 && mStaticParams.shiftStrategy == ShiftMapping::Hybrid;
+    mStaticParams.rcDataOfflineMode = mSpatialNeighborCount > 3 && false;
 
     auto defines = mStaticParams.getDefines(*this);
 
@@ -1162,22 +1030,16 @@ void ReSTIRGIPass::updatePrograms()
     mpGeneratePaths->getProgram()->addDefines(defines);
     mpTracePass->getProgram()->addDefines(defines);
     mpReflectTypes->getProgram()->addDefines(defines);
-    mpSpatialPathRetracePass->getProgram()->addDefines(defines);
-    mpTemporalPathRetracePass->getProgram()->addDefines(defines);
     mpSpatialReusePass->getProgram()->addDefines(defines);
     mpTemporalReusePass->getProgram()->addDefines(defines);
-    mpComputePathReuseMISWeightsPass->getProgram()->addDefines(defines);
 
     // Recreate program vars. This may trigger recompilation if needed.
     // Note that program versions are cached, so switching to a previously used specialization is faster.
     mpGeneratePaths->setVars(nullptr);
     mpTracePass->setVars(nullptr);
     mpReflectTypes->setVars(nullptr);
-    mpSpatialPathRetracePass->setVars(nullptr);
-    mpTemporalPathRetracePass->setVars(nullptr);
     mpSpatialReusePass->setVars(nullptr);
     mpTemporalReusePass->setVars(nullptr);
-    mpComputePathReuseMISWeightsPass->setVars(nullptr);
 
     mVarsChanged = true;
     mRecompile = false;
@@ -1198,28 +1060,19 @@ void ReSTIRGIPass::prepareResources(RenderContext* pRenderContext, const RenderD
     if (mStaticParams.pathSamplingMode != PathSamplingMode::PathTracing)
     {
 
-        if (mStaticParams.shiftStrategy == ShiftMapping::Hybrid && (!mReconnectionDataBuffer ||
-            mStaticParams.rcDataOfflineMode && mReconnectionDataBuffer->getElementSize() != 512 ||
-            !mStaticParams.rcDataOfflineMode && mReconnectionDataBuffer->getElementSize() != 256))
-        {
-            mReconnectionDataBuffer = Buffer::createStructured(var["reconnectionDataBuffer"], reservoirCount, Resource::BindFlags::ShaderResource | Resource::BindFlags::UnorderedAccess, Buffer::CpuAccess::None, nullptr, false);
-            //printf("rcDataSize size: %d\n", mReconnectionDataBuffer->getElementSize());
-        }
-        if (mStaticParams.shiftStrategy != ShiftMapping::Hybrid)
-            mReconnectionDataBuffer = nullptr;
+        mReconnectionDataBuffer = nullptr;
 
         uint32_t baseReservoirSize = 88;
         uint32_t pathTreeReservoirSize = 128;
 
         if (mpOutputReservoirs &&
-            (mStaticParams.pathSamplingMode == PathSamplingMode::PathReuse && mpOutputReservoirs->getElementSize() != pathTreeReservoirSize ||
-                mStaticParams.pathSamplingMode != PathSamplingMode::PathReuse && mpOutputReservoirs->getElementSize() != baseReservoirSize ||
-                mpTemporalReservoirs.size() != mStaticParams.samplesPerPixel && mStaticParams.pathSamplingMode != PathSamplingMode::PathReuse))
+            (
+                mpOutputReservoirs->getElementSize() != baseReservoirSize ||
+                mpTemporalReservoirs.size() != mStaticParams.samplesPerPixel))
         {
             mpOutputReservoirs = Buffer::createStructured(var["outputReservoirs"], reservoirCount, Resource::BindFlags::ShaderResource | Resource::BindFlags::UnorderedAccess, Buffer::CpuAccess::None, nullptr, false);
             //printf("reservoir size: %d\n", mpOutputReservoirs->getElementSize());
 
-            if (mStaticParams.pathSamplingMode != PathSamplingMode::PathReuse)
             {
                 mpTemporalReservoirs.resize(mStaticParams.samplesPerPixel);
                 for (uint32_t i = 0; i < mStaticParams.samplesPerPixel; i++)
@@ -1228,16 +1081,7 @@ void ReSTIRGIPass::prepareResources(RenderContext* pRenderContext, const RenderD
             mVarsChanged = true;
         }
 
-        if (mStaticParams.pathSamplingMode == PathSamplingMode::PathReuse)
-        {
-            if (!mPathReuseMISWeightBuffer)
-            {
-                mPathReuseMISWeightBuffer = Buffer::createStructured(var["misWeightBuffer"], reservoirCount, Resource::BindFlags::ShaderResource | Resource::BindFlags::UnorderedAccess, Buffer::CpuAccess::None, nullptr, false);
-                mVarsChanged = true;
-            }
-            mpTemporalReservoirs.clear();
-        }
-        else mPathReuseMISWeightBuffer = nullptr;
+        mPathReuseMISWeightBuffer = nullptr;
 
         // Allocate path buffers.
         if (!mpOutputReservoirs || reservoirCount != mpOutputReservoirs->getElementCount())
@@ -1245,11 +1089,6 @@ void ReSTIRGIPass::prepareResources(RenderContext* pRenderContext, const RenderD
             mpOutputReservoirs = Buffer::createStructured(var["outputReservoirs"], reservoirCount, Resource::BindFlags::ShaderResource | Resource::BindFlags::UnorderedAccess, Buffer::CpuAccess::None, nullptr, false);
             //printf("reservoir size: %d\n", mpOutputReservoirs->getElementSize());
 
-            if (mStaticParams.pathSamplingMode == PathSamplingMode::PathReuse)
-            {
-                mPathReuseMISWeightBuffer = Buffer::createStructured(var["misWeightBuffer"], reservoirCount, Resource::BindFlags::ShaderResource | Resource::BindFlags::UnorderedAccess, Buffer::CpuAccess::None, nullptr, false);
-            }
-            else
             {
                 mpTemporalReservoirs.resize(mStaticParams.samplesPerPixel);
                 for (uint32_t i = 0; i < mStaticParams.samplesPerPixel; i++)
@@ -1263,14 +1102,6 @@ void ReSTIRGIPass::prepareResources(RenderContext* pRenderContext, const RenderD
     {
         mpTemporalVBuffer = Texture::create2D(mParams.frameDim.x, mParams.frameDim.y, mpScene->getHitInfo().getFormat(), 1, 1);
     }
-}
-
-
-void ReSTIRGIPass::setNRDData(const ShaderVar& var, const RenderData& renderData) const
-{
-    var["primaryHitEmission"] = renderData[kOutputNRDEmission]->asTexture();
-    var["primaryHitDiffuseReflectance"] = renderData[kOutputNRDDiffuseReflectance]->asTexture();
-    var["primaryHitSpecularReflectance"] = renderData[kOutputNRDSpecularReflectance]->asTexture();
 }
 
 void ReSTIRGIPass::preparePathTracer(const RenderData& renderData)
@@ -1403,11 +1234,8 @@ bool ReSTIRGIPass::prepareLighting(RenderContext* pRenderContext)
         lightingChanged |= mpEmissiveSampler->update(pRenderContext);
         auto defines = mpEmissiveSampler->getDefines();
         if (mpTracePass->getProgram()->addDefines(defines)) mRecompile = true;
-        if (mpSpatialPathRetracePass->getProgram()->addDefines(defines)) mRecompile = true;
-        if (mpTemporalPathRetracePass->getProgram()->addDefines(defines)) mRecompile = true;
         if (mpSpatialReusePass->getProgram()->addDefines(defines)) mRecompile = true;
         if (mpTemporalReusePass->getProgram()->addDefines(defines)) mRecompile = true;
-        if (mpComputePathReuseMISWeightsPass->getProgram()->addDefines(defines)) mRecompile = true;
     }
 
     return lightingChanged;
@@ -1425,15 +1253,6 @@ void ReSTIRGIPass::setShaderData(const ShaderVar& var, const RenderData& renderD
     var["params"].setBlob(mParams);
     var["vbuffer"] = renderData[kInputVBuffer]->asTexture();
     var["outputColor"] = renderData[kOutputColor]->asTexture();
-
-
-    if (mOutputNRDData && isPathTracer)
-    {
-        setNRDData(var["outputNRD"], renderData);
-        var["outputNRDDiffuseRadianceHitDist"] = renderData[kOutputNRDDiffuseRadianceHitDist]->asTexture();    ///< Output resolved diffuse color in .rgb and hit distance in .a for NRD. Only valid if kOutputNRDData == true.
-        var["outputNRDSpecularRadianceHitDist"] = renderData[kOutputNRDSpecularRadianceHitDist]->asTexture();  ///< Output resolved specular color in .rgb and hit distance in .a for NRD. Only valid if kOutputNRDData == true.
-        var["outputNRDResidualRadianceHitDist"] = renderData[kOutputNRDResidualRadianceHitDist]->asTexture();///< Output resolved residual color in .rgb and hit distance in .a for NRD. Only valid if kOutputNRDData == true.
-    }
 
     if (isPathTracer)
     {
@@ -1509,15 +1328,6 @@ bool ReSTIRGIPass::beginFrame(RenderContext* pRenderContext, const RenderData& r
         mRecompile = true;
     }
 
-    // Check if NRD data should be generated.
-    mOutputNRDData =
-        renderData[kOutputNRDDiffuseRadianceHitDist] != nullptr
-        || renderData[kOutputNRDSpecularRadianceHitDist] != nullptr
-        || renderData[kOutputNRDResidualRadianceHitDist] != nullptr
-        || renderData[kOutputNRDEmission] != nullptr
-        || renderData[kOutputNRDDiffuseReflectance] != nullptr
-        || renderData[kOutputNRDSpecularReflectance] != nullptr;
-
     // Check if time data should be generated.
     mOutputTime = renderData[kOutputTime] != nullptr;
 
@@ -1587,7 +1397,6 @@ void ReSTIRGIPass::generatePaths(RenderContext* pRenderContext, const RenderData
 
     // Additional specialization. This shouldn't change resource declarations.
     mpGeneratePaths->addDefine("OUTPUT_TIME", mOutputTime ? "1" : "0");
-    mpGeneratePaths->addDefine("OUTPUT_NRD_DATA", mOutputNRDData ? "1" : "0");
 
     // Bind resources.
     auto var = mpGeneratePaths->getRootVar()["CB"]["gPathGenerator"];
@@ -1609,7 +1418,6 @@ void ReSTIRGIPass::tracePass(RenderContext* pRenderContext, const RenderData& re
     bool outputDebug = renderData[kOutputDebug] != nullptr;
     pass->addDefine("OUTPUT_TIME", mOutputTime ? "1" : "0");
     pass->addDefine("OUTPUT_DEBUG", outputDebug ? "1" : "0");
-    pass->addDefine("OUTPUT_NRD_DATA", mOutputNRDData ? "1" : "0");
 
     // Bind global resources.
     auto var = pass->getRootVar();
@@ -1631,17 +1439,9 @@ void ReSTIRGIPass::tracePass(RenderContext* pRenderContext, const RenderData& re
 
 void ReSTIRGIPass::PathReusePass(RenderContext* pRenderContext, uint32_t restir_i, const RenderData& renderData, bool isTemporalReuse, int spatialRoundId, bool isLastRound)
 {
-    bool isPathReuseMISWeightComputation = spatialRoundId == -1;
+    PROFILE(isTemporalReuse ? "temporalReuse" : "spatialReuse");
 
-    PROFILE(isTemporalReuse ? "temporalReuse" : (isPathReuseMISWeightComputation ? "MISWeightComputation" : "spatialReuse"));
-
-    ComputePass::SharedPtr pass = isPathReuseMISWeightComputation ? mpComputePathReuseMISWeightsPass : (isTemporalReuse ? mpTemporalReusePass : mpSpatialReusePass);
-
-    if (isPathReuseMISWeightComputation)
-    {
-        spatialRoundId = 0;
-        restir_i = 0;
-    }
+    ComputePass::SharedPtr pass = isTemporalReuse ? mpTemporalReusePass : mpSpatialReusePass;
 
     // Check shader assumptions.
     // We launch one thread group per screen tile, with threads linearly indexed.
@@ -1654,7 +1454,6 @@ void ReSTIRGIPass::PathReusePass(RenderContext* pRenderContext, uint32_t restir_
     // Additional specialization. This shouldn't change resource declarations.
     pass->addDefine("OUTPUT_TIME", mOutputTime ? "1" : "0");
     pass->addDefine("TEMPORAL_REUSE", isTemporalReuse ? "1" : "0");
-    pass->addDefine("OUTPUT_NRD_DATA", mOutputNRDData ? "1" : "0");
 
     // Bind resources.
     auto var = pass->getRootVar()["CB"]["gPathReusePass"];
@@ -1664,15 +1463,7 @@ void ReSTIRGIPass::PathReusePass(RenderContext* pRenderContext, uint32_t restir_
 
     var["outputReservoirs"] = spatialRoundId % 2 == 1 ? mpTemporalReservoirs[restir_i] : mpOutputReservoirs;
 
-    if (mStaticParams.pathSamplingMode == PathSamplingMode::PathReuse)
-    {
-        var["nRooksPattern"] = mNRooksPatternBuffer;
-    }
-
-    if (mStaticParams.pathSamplingMode == PathSamplingMode::PathReuse)
-        var["misWeightBuffer"] = mPathReuseMISWeightBuffer;
-    else if (!isPathReuseMISWeightComputation)
-        var["temporalReservoirs"] = spatialRoundId % 2 == 0 ? mpTemporalReservoirs[restir_i] : mpOutputReservoirs;
+    var["temporalReservoirs"] = spatialRoundId % 2 == 0 ? mpTemporalReservoirs[restir_i] : mpOutputReservoirs;
     var["reconnectionDataBuffer"] = mReconnectionDataBuffer;
 
     var["gNumSpatialRounds"] = mNumSpatialRounds;
@@ -1682,15 +1473,13 @@ void ReSTIRGIPass::PathReusePass(RenderContext* pRenderContext, uint32_t restir_
         var["temporalVbuffer"] = mpTemporalVBuffer;
         var["motionVectors"] = renderData[kInputMotionVectors]->asTexture();
         var["gEnableTemporalReprojection"] = mEnableTemporalReprojection;
-        var["gNoResamplingForTemporalReuse"] = mNoResamplingForTemporalReuse;
         if (!mUseMaxHistory) var["gTemporalHistoryLength"] = 1e30f;
         else var["gTemporalHistoryLength"] = (float)mTemporalHistoryLength;
     }
     else
     {
-        var["gSpatialReusePattern"] = mStaticParams.pathSamplingMode == PathSamplingMode::PathReuse ? (uint32_t)mPathReusePattern : (uint32_t)mSpatialReusePattern;
+        var["gSpatialReusePattern"] = (uint32_t)mSpatialReusePattern;
 
-        if (!isPathReuseMISWeightComputation)
         {
             var["gNeighborCount"] = mSpatialNeighborCount;
             var["gGatherRadius"] = mSpatialReuseRadius;
@@ -1699,90 +1488,14 @@ void ReSTIRGIPass::PathReusePass(RenderContext* pRenderContext, uint32_t restir_
             var["gFeatureBasedRejection"] = mFeatureBasedRejection;
             var["neighborOffsets"] = mpNeighborOffsets;
         }
-
-        if (mOutputNRDData && !isPathReuseMISWeightComputation)
-        {
-            var["outputNRDDiffuseRadianceHitDist"] = renderData[kOutputNRDDiffuseRadianceHitDist]->asTexture();
-            var["outputNRDSpecularRadianceHitDist"] = renderData[kOutputNRDSpecularRadianceHitDist]->asTexture();
-            var["outputNRDResidualRadianceHitDist"] = renderData[kOutputNRDResidualRadianceHitDist]->asTexture();
-            var["primaryHitEmission"] = renderData[kOutputNRDEmission]->asTexture();
-            var["gSppId"] = restir_i;
-        }
     }
 
 
-    if (!isPathReuseMISWeightComputation)
     {
         var["directLighting"] = renderData[kInputDirectLighting]->asTexture();
         var["useDirectLighting"] = mUseDirectLighting;
     }
-    var["gIsLastRound"] = mStaticParams.pathSamplingMode == PathSamplingMode::PathReuse || isLastRound;
-
-    pass["gScene"] = mpScene->getParameterBlock();
-    pass["gPathTracer"] = mpPathTracerBlock;
-
-    mpPixelStats->prepareProgram(pass->getProgram(), pass->getRootVar());
-    mpPixelDebug->prepareProgram(pass->getProgram(), pass->getRootVar());
-
-    {
-        // Launch one thread per pixel.
-        // The dimensions are padded to whole tiles to allow re-indexing the threads in the shader.
-        pass->execute(pRenderContext, { mParams.screenTiles.x * kScreenTileDim.x, mParams.screenTiles.y * kScreenTileDim.y, 1u });
-    }
-}
-
-void ReSTIRGIPass::PathRetracePass(RenderContext* pRenderContext, uint32_t restir_i, const RenderData& renderData, bool temporalReuse /*= false*/, int spatialRoundId /*= 0*/)
-{
-    PROFILE(temporalReuse ? "temporalPathRetrace" : "spatialPathRetrace");
-    ComputePass::SharedPtr pass = (temporalReuse ? mpTemporalPathRetracePass : mpSpatialPathRetracePass);
-
-    // Check shader assumptions.
-    // We launch one thread group per screen tile, with threads linearly indexed.
-    const uint32_t tileSize = kScreenTileDim.x * kScreenTileDim.y;
-    assert(kScreenTileDim.x == 16 && kScreenTileDim.y == 16); // TODO: Remove this temporary limitation when Slang bug has been fixed, see comments in shader.
-    assert(kScreenTileBits.x <= 4 && kScreenTileBits.y <= 4); // Since we use 8-bit deinterleave.
-    assert(pass->getThreadGroupSize().x == 16);
-    assert(pass->getThreadGroupSize().y == 16 && pass->getThreadGroupSize().z == 1);
-
-    // Additional specialization. This shouldn't change resource declarations.
-    pass->addDefine("OUTPUT_TIME", mOutputTime ? "1" : "0");
-    pass->addDefine("TEMPORAL_REUSE", temporalReuse ? "1" : "0");
-
-    // Bind resources.
-    auto var = pass->getRootVar()["CB"]["gPathRetracePass"];
-
-    // TODO: refactor arguments
-    setShaderData(var, renderData, false, false);
-    var["outputReservoirs"] = spatialRoundId % 2 == 1 ? mpTemporalReservoirs[restir_i] : mpOutputReservoirs;
-
-    if (mStaticParams.pathSamplingMode == PathSamplingMode::PathReuse)
-    {
-        var["nRooksPattern"] = mNRooksPatternBuffer;
-    }
-
-    var["temporalReservoirs"] = spatialRoundId % 2 == 0 ? mpTemporalReservoirs[restir_i] : mpOutputReservoirs;
-    var["reconnectionDataBuffer"] = mReconnectionDataBuffer;
-    var["gNumSpatialRounds"] = mNumSpatialRounds;
-
-    if (temporalReuse)
-    {
-        var["temporalVbuffer"] = mpTemporalVBuffer;
-        var["motionVectors"] = renderData[kInputMotionVectors]->asTexture();
-        var["gEnableTemporalReprojection"] = mEnableTemporalReprojection;
-        var["gNoResamplingForTemporalReuse"] = mNoResamplingForTemporalReuse;
-        if (!mUseMaxHistory) var["gTemporalHistoryLength"] = 1e30f;
-        else var["gTemporalHistoryLength"] = (float)mTemporalHistoryLength;
-    }
-    else
-    {
-        var["gSpatialRoundId"] = spatialRoundId;
-        var["neighborOffsets"] = mpNeighborOffsets;
-        var["gGatherRadius"] = mSpatialReuseRadius;
-        var["gNeighborCount"] = mSpatialNeighborCount;
-        var["gSmallWindowRadius"] = mSmallWindowRestirWindowRadius;
-        var["gSpatialReusePattern"] = mStaticParams.pathSamplingMode == PathSamplingMode::PathReuse ? (uint32_t)mPathReusePattern : (uint32_t)mSpatialReusePattern;
-        var["gFeatureBasedRejection"] = mFeatureBasedRejection;
-    }
+    var["gIsLastRound"] = isLastRound;
 
     pass["gScene"] = mpScene->getParameterBlock();
     pass["gPathTracer"] = mpPathTracerBlock;
@@ -1821,13 +1534,11 @@ Program::DefineList ReSTIRGIPass::StaticParams::getDefines(const ReSTIRGIPass& o
     defines.add("DISABLE_CAUSTICS", disableCaustics ? "1" : "0");
     defines.add("DISABLE_DIRECT_ILLUMINATION", disableDirectIllumination ? "1" : "0");
     defines.add("PRIMARY_LOD_MODE", std::to_string((uint32_t)primaryLodMode));
-    defines.add("USE_NRD_DEMODULATION", useNRDDemodulation ? "1" : "0");
     defines.add("COLOR_FORMAT", std::to_string((uint32_t)colorFormat));
     defines.add("MIS_HEURISTIC", std::to_string((uint32_t)misHeuristic));
     defines.add("MIS_POWER_EXPONENT", std::to_string(misPowerExponent));
     defines.add("_USE_DETERMINISTIC_BSDF", useDeterministicBSDF ? "1" : "0");
     defines.add("NEIGHBOR_OFFSET_COUNT", std::to_string(kNeighborOffsetCount));
-    defines.add("SHIFT_STRATEGY", std::to_string((uint32_t)shiftStrategy));
     defines.add("PATH_SAMPLING_MODE", std::to_string((uint32_t)pathSamplingMode));
 
     // Sampling utilities configuration.
@@ -1847,15 +1558,11 @@ Program::DefineList ReSTIRGIPass::StaticParams::getDefines(const ReSTIRGIPass& o
     // Set default (off) values for additional features.
     defines.add("OUTPUT_GUIDE_DATA", "0");
     defines.add("OUTPUT_TIME", "0");
-    defines.add("OUTPUT_NRD_DATA", "0");
     defines.add("OUTPUT_NRD_ADDITIONAL_DATA", "0");
 
     defines.add("SPATIAL_RESTIR_MIS_KIND", std::to_string((uint32_t)spatialMisKind));
-    defines.add("TEMPORAL_RESTIR_MIS_KIND", std::to_string((uint32_t)temporalMisKind));
 
     defines.add("TEMPORAL_UPDATE_FOR_DYNAMIC_SCENE", temporalUpdateForDynamicScene ? "1" : "0");
-
-    defines.add("BPR", pathSamplingMode == PathSamplingMode::PathReuse ? "1" : "0");
 
     defines.add("SEPARATE_PATH_BSDF", separatePathBSDF ? "1" : "0");
 
