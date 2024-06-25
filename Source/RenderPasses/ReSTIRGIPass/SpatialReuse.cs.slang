@@ -33,12 +33,8 @@ struct PathReusePass
 
     int gSpatialRoundId;
     int  gNumSpatialRounds;
-    uint gSpatialReusePattern;
-    // for default pattern
     int gNeighborCount;
     float gGatherRadius;
-    // for small window
-    int gSmallWindowRadius;
 
     bool gIsLastRound;
 
@@ -82,34 +78,16 @@ struct PathReusePass
 
     int getNeighborCount()
     {
-        {
-            if (SpatialReusePattern(gSpatialReusePattern) == SpatialReusePattern::Default)
-            {
-                return gNeighborCount; // does not include self
-            }
-            else
-            {
-                int smallWindowDiameter = 2 * gSmallWindowRadius + 1;
-                return smallWindowDiameter * smallWindowDiameter; // count self, but not use self as neighbor
-            }
-        }
+        return gNeighborCount; // does not include self
     }
 
     int2 getNextNeighborPixel(const uint startIndex, int2 pixel, int i)
     {
         int2 neighborPixel = int2(0,0);
 
-        if (SpatialReusePattern(gSpatialReusePattern) == SpatialReusePattern::Default)
         {
             uint neighborIndex = (startIndex + i) & kNeighborOffsetMask;
             neighborPixel = pixel + int2(neighborOffsets[neighborIndex] * gGatherRadius);
-        }
-        else if (SpatialReusePattern(gSpatialReusePattern) == SpatialReusePattern::SmallWindow)
-        {
-            int smallWindowDiameter = 2 * gSmallWindowRadius + 1;
-            neighborPixel = pixel + int2(-gSmallWindowRadius + (i % smallWindowDiameter),
-                -gSmallWindowRadius + (i / smallWindowDiameter));
-            if (all(neighborPixel == pixel)) neighborPixel = int2(-1);
         }
  
         return neighborPixel;
@@ -187,77 +165,6 @@ struct PathReusePass
 
                 float chosen_approxPdf = 0.f;
                 float sum_approxPdf = 0.f;
-
-                // Evaluate MIS weight.
-
-#if 0
-                if (ReSTIRMISKind(kSpatialReSTIRMISKind) != ReSTIRMISKind::ConstantBiased)
-                {
-                    if (chosen_i == -1)
-                    {
-                        chosen_approxPdf = PathReservoir::computeWeight(chosenReservoir.F);
-                        sum_approxPdf += chosen_approxPdf * centralM;
-                        count += centralM;
-                    }
-                    else
-                    {
-                        sum_approxPdf += PathReservoir::computeWeight(dstReservoir.F) * centralM;
-                        count += centralM;
-                    }
-
-                    for (uint i = 0; i < neighborCount; ++i)
-                    {
-                        if (i == chosen_i)
-                        {
-                            chosen_approxPdf = PathReservoir::computeWeight(chosenReservoir.F) / chosen_Jacobian;
-                            sum_approxPdf += chosen_approxPdf * chosenReservoir.M;
-                            count += chosenReservoir.M; 
-
-                            continue;
-                        }
-
-                        int2 prefixPixel = getNextNeighborPixel(startIndex, pixel, i);
-                        float prefixJacobian;
-                        if (!isValidScreenRegion(prefixPixel)) continue;
-
-                        PathReservoir prefixReservoir = outputReservoirs[params.getReservoirOffset(prefixPixel)];
-                        PackedHitInfo prefixPrimaryHitPacked;
-                        ShadingData prefixPrimarySd = getPixelShadingData(prefixPixel, prefixPrimaryHitPacked);
-                        if (!isValidPackedHitInfo(prefixPrimaryHitPacked)) continue;
-                        if (!isValidGeometry(centralPrimarySd, prefixPrimarySd)) continue;
-
-                        float prefix_approxPdf;
-                        int shiftCount = 0;
-
-                        float3 prefixIntegrand = computeShiftedIntegrand(params, prefixJacobian, prefixPrimaryHitPacked, prefixPrimarySd,
-                            centralPrimarySd, dstReservoir, dummyRcData, true);
-                        prefix_approxPdf = PathReservoir::computeWeight(prefixIntegrand) * prefixJacobian;
-
-                        if (prefix_approxPdf > 0.f) count += prefixReservoir.M;
-
-                        sum_approxPdf += prefix_approxPdf * prefixReservoir.M;
-                    }
-
-                    float misWeight = 0.f;
-
-                    if (sum_approxPdf > 0.f)
-                    {
-                        if (ReSTIRMISKind(kSpatialReSTIRMISKind) == ReSTIRMISKind::Constant) misWeight = chosen_approxPdf / sum_approxPdf;
-                        else misWeight = 1.f / count;
-                    }
-
-                    dstReservoir.weight *= dstReservoir.M * misWeight;
-
-                }
-                else
-#endif
-                {
-                    if (chosen_i == -1)
-                    {
-                        int smallWindowDiameter = 2 * gSmallWindowRadius + 1;
-                        chosen_i = (smallWindowDiameter * smallWindowDiameter) / 2;
-                    }
-                }
 
                 dstReservoir.finalizeRIS();
 
