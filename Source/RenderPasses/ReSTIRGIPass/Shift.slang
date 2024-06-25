@@ -46,12 +46,12 @@ bool isJacobianInvalid(float Jacobian)
 // srcPdf / dstJacobian transforms pdf in src space to dst space
 float3 computeShiftedIntegrandReconnection(const RestirPathTracerParams params, inout float dstJacobian,  ShadingData dstPrimarySd,
                                 ShadingData srcPrimarySd, inout PathReservoir srcReservoir, bool evalVisibility,
-                                bool useHybridShift=false, bool useCachedJacobian = false)
+                                bool useCachedJacobian = false)
 {
     float3 dstCachedJacobian;
     dstJacobian = 0.f;
 
-    int rcVertexLength = !useHybridShift ? 1 : srcReservoir.pathFlags.rcVertexLength();
+    int rcVertexLength = 1;
 
     HitInfo rcVertexHit = srcReservoir.rcVertexHit.getHitInfo();
     float3 rcVertexIrradiance = srcReservoir.rcVertexIrradiance[0];
@@ -114,12 +114,6 @@ float3 computeShiftedIntegrandReconnection(const RestirPathTracerParams params, 
     float3 shiftedDisp = rcVertexSd.posW - dstPrimarySd.posW;
     float shifted_dist2 = dot(shiftedDisp, shiftedDisp);
     float shifted_cosine = abs(dot(rcVertexSd.faceN, -dstConnectionV));
-
-    if ((params.localStrategyType & (uint)LocalStrategy::DistanceCondition) && useHybridShift)
-    {
-        bool isFarField = sqrt(shifted_dist2) >= params.nearFieldDistance;
-        if (!isFarField) return 0.f;
-    }
 
 
     dstCachedJacobian.z = shifted_cosine / shifted_dist2;
