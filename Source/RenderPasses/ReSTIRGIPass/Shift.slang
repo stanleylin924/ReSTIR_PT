@@ -24,10 +24,6 @@ float3 computeShiftedIntegrand(
     PathReservoir tempReservoir = srcReservoir;
     float3 res = computeShiftedIntegrand_(params, dstJacobian, dstPrimaryHitPacked, dstPrimarySd,
         srcPrimarySd, tempReservoir, rcData, evalVisibility, usePrev, temporalUpdateForDynamicScene);
-    if (PathSamplingMode(kPathSamplingMode) == PathSamplingMode::PathReuse) // for precomputing MIS weights
-    {
-        dstJacobian = tempReservoir.cachedJacobian[0];
-    }
     return res;
 }
 

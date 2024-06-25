@@ -201,7 +201,6 @@ private:
     Buffer::SharedPtr               mpOutputReservoirs;               ///< Output paths from the path sampling stage.
     // enable multiple temporal reservoirs for spp > 1 (multiple ReSTIR chains)
     std::vector<Buffer::SharedPtr>               mpTemporalReservoirs;               ///< Output paths from the path sampling stage.
-    Buffer::SharedPtr               mReconnectionDataBuffer;
     Buffer::SharedPtr               mPathReuseMISWeightBuffer;
 
     Texture::SharedPtr              mpTemporalVBuffer;

@@ -26,12 +26,9 @@ struct PathReusePass
     Texture2D<PackedHitInfo> vbuffer;                     ///< Fullscreen V-buffer for the primary hits.
     Texture1D<float2> neighborOffsets;
 
-    ByteAddressBuffer nRooksPattern;
-
     RWTexture2D<float4> outputColor;                      ///< Output resolved color.
     StructuredBuffer<PathReservoir> outputReservoirs;     // reservoir from previous pass
     RWStructuredBuffer<PathReservoir> temporalReservoirs; // resulting reservoir for next frame
-    StructuredBuffer<PixelReconnectionData> reconnectionDataBuffer;
     StructuredBuffer<PathReuseMISWeight> misWeightBuffer;
 
     int gSpatialRoundId;
@@ -95,25 +92,6 @@ struct PathReusePass
                 int smallWindowDiameter = 2 * gSmallWindowRadius + 1;
                 return smallWindowDiameter * smallWindowDiameter; // count self, but not use self as neighbor
             }
-        }
-    }
-
-    int2 getPathReuseNextNeighborPixel(int4 NRookQuery, int2 pixel, int i)
-    {
-        // 
-        if (PathReusePattern(gSpatialReusePattern) == PathReusePattern::Block)
-        {
-            int2 block = pixel / 4;
-            return 4 * block + int2(i % 4, i / 4);
-        }
-        else
-        {
-            // fetch neighbors
-            int groupId = NRookQuery.z;
-            uint2 words = nRooksPattern.Load2(NRookQuery.w * 256 + groupId * 8);
-            int rowId = (words[i / 8] >> (4 * (i % 8))) & 0xF;
-
-            return int2(i, rowId) - NRookQuery.xy + pixel;
         }
     }
 
@@ -290,8 +268,7 @@ struct PathReusePass
         if (dstReservoir.weight < 0.f) dstReservoir.weight = 0.f;
         if (isnan(dstReservoir.weight) || isinf(dstReservoir.weight)) dstReservoir.weight = 0.f;
 
-        if (true)
-            temporalReservoirs[centralOffset] = dstReservoir;
+        temporalReservoirs[centralOffset] = dstReservoir;
 
         if (any(isnan(color) || isinf(color) || color < 0.f)) color = 0.f;
         if (gIsLastRound)
