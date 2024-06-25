@@ -24,16 +24,7 @@ float3 computeShiftedIntegrand_(const RestirPathTracerParams params, inout float
 
     if (srcReservoir.weight == 0.f) return 0.f;
 
-    {
-//        if (temporalUpdateForDynamicScene && kTemporalUpdateForDynamicScene)
-//        {
-//            gPathTracer.traceTemporalUpdate(dstPrimarySd, srcReservoir);
-//        }
-
-        return computeShiftedIntegrandReconnection(params, dstJacobian, dstPrimarySd, srcPrimarySd, srcReservoir, evalVisibility);
-    }
-
-    return 1.f;
+    return computeShiftedIntegrandReconnection(params, dstJacobian, dstPrimarySd, srcPrimarySd, srcReservoir, evalVisibility);
 }
 
 bool isJacobianInvalid(float Jacobian)
@@ -66,6 +57,23 @@ float3 computeShiftedIntegrandReconnection(const RestirPathTracerParams params, 
     if (!rcVertexHitExists) 
     {
         float3 dstIntegrand = 0.f;
+        // are we having a infinite light as rcVertex?
+        if (kUseMIS && srcReservoir.pathFlags.lightType() == (uint)PathTracer::LightSampleType::EnvMap && srcReservoir.pathFlags.pathLength() + 1 == rcVertexLength && !srcReservoir.pathFlags.lastVertexNEE())
+        {
+            float3 wi = rcVertexWi;
+            bool isVisible = evalSegmentVisibility(dstPrimarySd.posW, wi, true); // test along a direction
+            if (isVisible)
+            {
+                float srcPDF1 = useCachedJacobian ? srcReservoir.cachedJacobian.x : evalPdfBSDF(srcPrimarySd, wi);
+                float dstPDF1All;
+                float dstPDF1 = evalPdfBSDF(dstPrimarySd, wi, dstPDF1All, allowedSampledTypes1);
+                dstCachedJacobian.x = dstPDF1;
+                float3 dstF1 = evalBSDFCosine(dstPrimarySd, wi, allowedSampledTypes1);
+                float misWeight = PathTracer::evalMIS(1, dstPDF1All, 1, srcReservoir.lightPdf);//   dstPDF1 / (dstPDF1 + srcReservoir.lightPdf);
+                dstIntegrand = dstF1 / dstPDF1 * misWeight * rcVertexIrradiance;
+                dstJacobian = dstPDF1 / srcPDF1;
+            }
+        }
 
         if (useCachedJacobian)
             srcReservoir.cachedJacobian = dstCachedJacobian;
@@ -158,6 +166,20 @@ float3 computeShiftedIntegrandReconnection(const RestirPathTracerParams params, 
     {
         float misWeight = PathTracer::evalMIS(1, dstPDF1All, 1, srcReservoir.lightPdf);// dstPDF1 / (srcReservoir.lightPdf + dstPDF1);
         dstIntegrand *= misWeight;
+    }
+
+    // MIS weight
+    if (isRcVertexFinal && kUseMIS)
+    {
+        if (srcReservoir.pathFlags.lightType() != (uint)PathTracer::LightSampleType::Analytic) // TODO: optimize way this check
+        {
+            float lightPdf = srcReservoir.lightPdf;
+            float misWeight = PathTracer::evalMIS(1, isRcVertexNEE ? lightPdf : dstRcVertexScatterPdfAll, 1, isRcVertexNEE ? dstRcVertexScatterPdfAll : lightPdf);
+            dstIntegrand = dstIntegrand * misWeight; 
+            dstIntegrandNoF1 = dstIntegrandNoF1 * misWeight;
+            if (!isRcVertexNEE)
+                Jacobian *= dstRcVertexScatterPdf / srcRcVertexScatterPdf;
+        }
     }
 
     // need to account for non-identity jacobian due to BSDF sampling
