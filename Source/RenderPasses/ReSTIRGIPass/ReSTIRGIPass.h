@@ -52,7 +52,6 @@ private:
     void validateOptions();
     void updatePrograms();
     void prepareResources(RenderContext* pRenderContext, const RenderData& renderData);
-    void setNRDData(const ShaderVar& var, const RenderData& renderData) const;
     void preparePathTracer(const RenderData& renderData);
     void resetLighting();
     void prepareMaterials(RenderContext* pRenderContext);
@@ -114,9 +113,6 @@ private:
 
         bool            rcDataOfflineMode = false;
 
-        // Denoising parameters
-        bool        useNRDDemodulation = true;                  ///< Global switch for NRD demodulation.
-
         Program::DefineList getDefines(const ReSTIRGIPass& owner) const;
     };
 
@@ -160,7 +156,6 @@ private:
     bool                            mOptionsChanged = false;    ///< True if the config has changed since last frame.
     bool                            mGBufferAdjustShadingNormals = false; ///< True if GBuffer/VBuffer has adjusted shading normals enabled.
     bool                            mOutputTime = false;        ///< True if time data should be generated as output.
-    bool                            mOutputNRDData = false;     ///< True if NRD diffuse/specular data should be generated as outputs.
     bool                            mEnableRayStats = false;      ///< Set to true when the stats tab in the UI is open. This may negatively affect performance.
 
     uint64_t                        mAccumulatedRayCount = 0;

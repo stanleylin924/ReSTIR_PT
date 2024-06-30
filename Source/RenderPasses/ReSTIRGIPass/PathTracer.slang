@@ -17,11 +17,6 @@ import Rendering.Materials.InteriorListHelpers;
 import Rendering.Volumes.HomogeneousVolumeSampler;
 import Rendering.Volumes.PhaseFunction;
 import Rendering.Utils.PixelStats;
-import RenderPasses.Shared.Denoising.NRDBuffers;
-import RenderPasses.Shared.Denoising.NRDData;
-import RenderPasses.Shared.Denoising.NRDHelpers;
-import RenderPasses.Shared.Denoising.NRDConstants;
-import NRDHelpers;
 import Utils.Color.ColorHelpers;
 import Utils.Geometry.GeometryHelpers;
 import Utils.Debug.PixelDebug;
@@ -47,11 +42,6 @@ struct PathTracer
     EmissiveLightSampler emissiveSampler;           ///< Emissive light sampler. Only valid when kUseEmissiveLights == true.
 
     Texture2D<PackedHitInfo> vbuffer;               ///< Fullscreen V-buffer for the primary hits.
-
-    NRDBuffers outputNRD;                           ///< Output NRD data.
-    RWTexture2D<float4> outputNRDDiffuseRadianceHitDist;    ///< Output resolved diffuse color in .rgb and hit distance in .a for NRD. Only valid if kOutputNRDData == true.
-    RWTexture2D<float4> outputNRDSpecularRadianceHitDist;   ///< Output resolved specular color in .rgb and hit distance in .a for NRD. Only valid if kOutputNRDData == true.
-    RWTexture2D<float4> outputNRDResidualRadianceHitDist;   ///< Output resolved residual color in .rgb and hit distance in .a for NRD. Only valid if kOutputNRDData == true.
 
     RWTexture2D<float4> outputColor;                ///< Output color buffer if kSamplesPerPixel == 1.
     RWTexture2D<float4> outputDebug;                ///< Output debug data. Valid if OUTPUT_DEBUG is nonzero.
@@ -219,13 +209,6 @@ struct PathTracer
         uint maxSpp = itersPerShaderPass > 0 ? itersPerShaderPass : kMaxSamplesPerPixel;
         path.sg = SampleGenerator(pixel, (itersPerShaderPass + 1 + gNumSpatialRounds) * params.seed + path.getSampleIdx());
 
-        if (kOutputNRDData)
-        {
-            path.hitDist = 0;
-            path.rcPrevVertexWo = 0;
-            path.sharedScatterDir = 0;
-        }
-
         path.pathBuilder.init(path.sg);
         path.pathReservoir.init();
     }
@@ -308,13 +291,6 @@ struct PathTracer
 
         float pdfAll = result.pdf;
         if (kSeparatePathBSDF) result.pdf = result.pdfSingle;
-
-        // Ignore valid on purpose for now.
-        if (kOutputNRDData && path.length == 0)
-        {
-            path.setDiffusePrimaryHit(result.isLobe(LobeType::Diffuse));
-            path.setSpecularPrimaryHit(result.isLobe(LobeType::Specular));
-        }
 
         if (valid)
         {
@@ -838,7 +814,7 @@ struct PathTracer
         else
         {
             path.clearHit();
-            path.sceneLength = float16_t(kNRDInvalidPathLength);
+            path.sceneLength = float16_t(HLF_MAX);
         }
     }
 
@@ -1438,21 +1414,6 @@ struct PathTracer
 
         path.isLastVertexClassifiedAsRough = isCurrentVertexClassifiedAsRough;
 
-        if (kOutputNRDData && !path.enableRandomReplay)
-        {
-            const uint2 pixel = path.getPixel();
-
-            if (gSppId == 0)
-            {
-                setNRDPrimaryHitEmission(outputNRD, kUseNRDDemodulation, path, pixel, isPrimaryHit, attenuatedEmission);
-                setNRDPrimaryHitReflectance(outputNRD, kUseNRDDemodulation, path, pixel, isPrimaryHit, sd);
-            }
-
-            setNRDSampleHitDist(path); // this will be overriden if ReSTIR is done
-            setNRDSampleEmission(kUseNRDDemodulation, path, isPrimaryHit, attenuatedEmission); // this should be the same for every sample (unless in volume rendering)
-            setNRDSampleReflectance(kUseNRDDemodulation, path, isPrimaryHit, sd); // this will be overriden in ReSTIR mode
-        }
-
         if (!path.isActive()) return;
 
         // Check if this is the last path vertex.
@@ -1564,11 +1525,6 @@ struct PathTracer
                     }
                 }
             }
-        }
-
-        if (kOutputNRDData)
-        {
-            setNRDSampleHitDist(path); // this will be overriden in ReSTIR mode
         }
 
         path.terminate();
@@ -1689,42 +1645,6 @@ struct PathTracer
         }
 
         return L;
-    }
-
-    void traceRandomReplayGetDenoiserData(HitInfo hit, ShadingData sd, Ray ray, ReSTIRPathFlags pathFlags,
-        uint initRandomSeed, inout float hitDist, inout NRDPathType pathType, inout float3 sampleReflectance)
-    {
-        PathState path;
-        bool isRcVertexEscapedVertex = pathFlags.pathLength() + 1 == pathFlags.rcVertexLength();
-        generateRandomReplayPath(path, hit, ray, initRandomSeed, pathFlags.pathLength(), pathFlags.lastVertexNEE(), isRcVertexEscapedVertex);
-        path.useHybridShift = true;
-        path.isReplayForHybridShift = true;
-        path.pathBuilder.rcVertexLength = pathFlags.rcVertexLength();
-
-        if (path.pathBuilder.rcVertexLength > 1)
-        {
-            path.origin = sd.computeNewRayOrigin();
-
-            // this is also applicable for random number reuse
-            path.pathBuilder.pathFlags.flags = 0;
-
-            generateReplayPrimaryScatterRay(path, sd);
-            if (path.isActive()) nextVertex(path);
-            else
-            {
-                // this shouldn't happen! 
-                return;
-            }
-
-            hitDist = float(path.sceneLength);
-            if (path.isDiffusePrimaryHit()) pathType = NRDPathType::Diffuse;
-            else if (path.isSpecularPrimaryHit()) pathType = NRDPathType::Specular;
-            else pathType = NRDPathType::Residual;
-
-            sampleReflectance = computeSampleReflectance(kUseNRDDemodulation, path.isDiffusePrimaryHit(), path.isSpecularPrimaryHit(), sd);
-
-            return;
-        }
     }
 
     void traceTemporalUpdate(ShadingData rcPrevSd, inout PathReservoir tempPathReservoir)
@@ -1987,64 +1907,6 @@ struct PathTracer
                 }
             }
         }
-
-        if (kOutputNRDData && PathSamplingMode(kPathSamplingMode) == PathSamplingMode::PathTracing) 
-        {
-            float3 diffuseRadiance = 0.f;
-            float3 specularRadiance = 0.f;
-            float3 residualRadiance = 0.f;
-            float hitDist = path.hitDist;
-
-            {
-                NRDPathType pathType;
-                if (path.isDiffusePrimaryHit()) pathType = NRDPathType::Diffuse;
-                else if (path.isSpecularPrimaryHit()) pathType = NRDPathType::Specular;
-                else pathType = NRDPathType::Residual;
-
-                float3 radiance = path.L + path.LDeltaDirect;
-
-                if (useDirectLighting)
-                {
-                    radiance += directLighting[pixel].rgb;
-                }
-
-                float3 reflectance = path.sharedScatterDir;
-                reflectance = max(0.04f, reflectance);
-                float3 emission = path.rcPrevVertexWo;
-                float3 demodulatedRadiance = max(0.f, (radiance - emission)) / reflectance;
-
-                switch (pathType)
-                {
-                case NRDPathType::Diffuse:
-                    diffuseRadiance += demodulatedRadiance;
-                    break;
-                case NRDPathType::Specular:
-                    specularRadiance += demodulatedRadiance;
-                    break;
-                default:
-                    // Do not demodulate residual.
-                    residualRadiance += radiance;
-                    break;
-                }
-            }
-
-            const uint spp = kSamplesPerPixel;
-            const float invSpp = spp > 0 ? 1.f / spp : 1.f; // Setting invSpp to 1.0 if we have no samples to avoid NaNs below.
-
-            if (sampleId == 0)
-            {
-                outputNRDDiffuseRadianceHitDist[pixel] = float4(invSpp * diffuseRadiance, invSpp * hitDist);
-                outputNRDSpecularRadianceHitDist[pixel] = float4(invSpp * specularRadiance, invSpp * hitDist);
-                outputNRDResidualRadianceHitDist[pixel] = float4(invSpp * residualRadiance, invSpp * hitDist);
-            }
-            else
-            {
-                outputNRDDiffuseRadianceHitDist[pixel] += float4(invSpp * diffuseRadiance, invSpp * hitDist);
-                outputNRDSpecularRadianceHitDist[pixel] += float4(invSpp * specularRadiance, invSpp * hitDist);
-                outputNRDResidualRadianceHitDist[pixel] += float4(invSpp * residualRadiance, invSpp * hitDist);
-            }
-        }
-
     }
 
 };

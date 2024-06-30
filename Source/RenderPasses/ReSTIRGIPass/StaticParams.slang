@@ -41,5 +41,3 @@ static const bool kTemporalUpdateForDynamicScene = TEMPORAL_UPDATE_FOR_DYNAMIC_S
 static const int kMaximumPathLength = 15;
 static const uint kPathSamplingMode = PATH_SAMPLING_MODE;
 static const bool kSeparatePathBSDF = SEPARATE_PATH_BSDF;
-
-static const bool kUseNRDDemodulation = USE_NRD_DEMODULATION;

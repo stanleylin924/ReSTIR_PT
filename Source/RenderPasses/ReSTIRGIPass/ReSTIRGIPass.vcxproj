@@ -39,7 +39,6 @@
     <ShaderSource Include="ComputePathReuseMISWeights.cs.slang" />
     <ShaderSource Include="GeneratePaths.cs.slang" />
     <ShaderSource Include="LoadShadingData.slang" />
-    <ShaderSource Include="NRDHelpers.slang" />
     <ShaderSource Include="Params.slang" />
     <ShaderSource Include="PathReservoir.slang" />
     <ShaderSource Include="PathBuilder.slang" />

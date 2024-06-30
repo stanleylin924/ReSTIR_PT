@@ -40,12 +40,6 @@ namespace
     const std::string kOutputPathLength = "pathLength";
     const std::string kOutputDebug = "debug";
     const std::string kOutputTime = "time";
-    const std::string kOutputNRDDiffuseRadianceHitDist = "nrdDiffuseRadianceHitDist";
-    const std::string kOutputNRDSpecularRadianceHitDist = "nrdSpecularRadianceHitDist";
-    const std::string kOutputNRDResidualRadianceHitDist = "nrdResidualRadianceHitDist";
-    const std::string kOutputNRDEmission = "nrdEmission";
-    const std::string kOutputNRDDiffuseReflectance = "nrdDiffuseReflectance";
-    const std::string kOutputNRDSpecularReflectance = "nrdSpecularReflectance";
 
 
     const Falcor::ChannelList kOutputChannels =
@@ -60,12 +54,6 @@ namespace
         { kOutputSpecularAlbedo,                "gOutputSpecularAlbedo",                "Output specular albedo (linear)", true /* optional */, ResourceFormat::RGBA8Unorm },
         { kOutputIndirectAlbedo,                "gOutputIndirectAlbedo",                "Output indirect albedo (linear)", true /* optional */, ResourceFormat::RGBA8Unorm },
         { kOutputReflectionPosW,                "gOutputReflectionPosW",                "Output reflection pos (world space)", true /* optional */, ResourceFormat::RGBA32Float },
-        { kOutputNRDDiffuseRadianceHitDist,     "gOutputNRDDiffuseRadianceHitDist",     "Output demodulated diffuse color (linear) and hit distance", true /* optional */, ResourceFormat::RGBA32Float },
-        { kOutputNRDSpecularRadianceHitDist,    "gOutputNRDSpecularRadianceHitDist",    "Output demodulated specular color (linear) and hit distance", true /* optional */, ResourceFormat::RGBA32Float },
-        { kOutputNRDResidualRadianceHitDist,    "gOutputNRDResidualRadianceHitDist",    "Output residual color (linear) and hit distance", true /* optional */, ResourceFormat::RGBA32Float },
-        { kOutputNRDEmission,                   "gOutputNRDEmission",                   "Output primary surface emission", true /* optional */, ResourceFormat::RGBA32Float },
-        { kOutputNRDDiffuseReflectance,         "gOutputNRDDiffuseReflectance",         "Output primary surface diffuse reflectance", true /* optional */, ResourceFormat::RGBA16Float },
-        { kOutputNRDSpecularReflectance,        "gOutputNRDSpecularReflectance",        "Output primary surface specular reflectance", true /* optional */, ResourceFormat::RGBA16Float },
     };
 
     // UI variables.
@@ -169,7 +157,6 @@ namespace
     const std::string kEmissiveSampler = "emissiveSampler";
     const std::string kLightBVHOptions = "lightBVHOptions";
     const std::string kPrimaryLodMode = "primaryLodMode";
-    const std::string kUseNRDDemodulation = "useNRDDemodulation";
 
     const std::string kSpatialMisKind = "spatialMisKind";
     const std::string kTemporalMisKind = "temporalMisKind";
@@ -407,8 +394,6 @@ bool ReSTIRGIPass::parseDictionary(const Dictionary& dict)
         else if (key == kSpecularRoughnessThreshold) mParams.specularRoughnessThreshold = value;
         else if (key == kDisableDirectIllumination) mStaticParams.disableDirectIllumination = value;
         else if (key == kPrimaryLodMode)  mStaticParams.primaryLodMode = value;
-        // Denoising parameters
-        else if (key == kUseNRDDemodulation) mStaticParams.useNRDDemodulation = value;
         else if (key == kColorFormat) mStaticParams.colorFormat = value;
         else if (key == kMISHeuristic) mStaticParams.misHeuristic = value;
         else if (key == kMISPowerExponent) mStaticParams.misPowerExponent = value;
@@ -594,8 +579,6 @@ Dictionary ReSTIRGIPass::getScriptingDictionary()
     d[kCandidateSamples] = mStaticParams.candidateSamples;
     d[kTemporalUpdateForDynamicScene] = mStaticParams.temporalUpdateForDynamicScene;
     d[kEnableRayStats] = mEnableRayStats;
-    // Denoising parameters
-    d[kUseNRDDemodulation] = mStaticParams.useNRDDemodulation;
 
     return d;
 }
@@ -1098,12 +1081,6 @@ bool ReSTIRGIPass::renderRenderingUI(Gui::Widgets& widget)
         dirty |= widget.var("TexLOD bias", mParams.lodBias, -16.f, 16.f, 0.01f);
     }
 
-    if (auto group = widget.group("Denoiser options"))
-    {
-        dirty |= widget.checkbox("Use NRD demodulation", mStaticParams.useNRDDemodulation);
-        widget.tooltip("Global switch for NRD demodulation");
-    }
-
     if (auto group = widget.group("Output options"))
     {
         dirty |= widget.dropdown("Color format", kColorFormatList, (uint32_t&)mStaticParams.colorFormat);
@@ -1266,13 +1243,6 @@ void ReSTIRGIPass::prepareResources(RenderContext* pRenderContext, const RenderD
 }
 
 
-void ReSTIRGIPass::setNRDData(const ShaderVar& var, const RenderData& renderData) const
-{
-    var["primaryHitEmission"] = renderData[kOutputNRDEmission]->asTexture();
-    var["primaryHitDiffuseReflectance"] = renderData[kOutputNRDDiffuseReflectance]->asTexture();
-    var["primaryHitSpecularReflectance"] = renderData[kOutputNRDSpecularReflectance]->asTexture();
-}
-
 void ReSTIRGIPass::preparePathTracer(const RenderData& renderData)
 {
     // Create path tracer parameter block if needed.
@@ -1427,14 +1397,6 @@ void ReSTIRGIPass::setShaderData(const ShaderVar& var, const RenderData& renderD
     var["outputColor"] = renderData[kOutputColor]->asTexture();
 
 
-    if (mOutputNRDData && isPathTracer)
-    {
-        setNRDData(var["outputNRD"], renderData);
-        var["outputNRDDiffuseRadianceHitDist"] = renderData[kOutputNRDDiffuseRadianceHitDist]->asTexture();    ///< Output resolved diffuse color in .rgb and hit distance in .a for NRD. Only valid if kOutputNRDData == true.
-        var["outputNRDSpecularRadianceHitDist"] = renderData[kOutputNRDSpecularRadianceHitDist]->asTexture();  ///< Output resolved specular color in .rgb and hit distance in .a for NRD. Only valid if kOutputNRDData == true.
-        var["outputNRDResidualRadianceHitDist"] = renderData[kOutputNRDResidualRadianceHitDist]->asTexture();///< Output resolved residual color in .rgb and hit distance in .a for NRD. Only valid if kOutputNRDData == true.
-    }
-
     if (isPathTracer)
     {
         var["isLastRound"] = !mEnableSpatialReuse && !mEnableTemporalReuse;
@@ -1509,15 +1471,6 @@ bool ReSTIRGIPass::beginFrame(RenderContext* pRenderContext, const RenderData& r
         mRecompile = true;
     }
 
-    // Check if NRD data should be generated.
-    mOutputNRDData =
-        renderData[kOutputNRDDiffuseRadianceHitDist] != nullptr
-        || renderData[kOutputNRDSpecularRadianceHitDist] != nullptr
-        || renderData[kOutputNRDResidualRadianceHitDist] != nullptr
-        || renderData[kOutputNRDEmission] != nullptr
-        || renderData[kOutputNRDDiffuseReflectance] != nullptr
-        || renderData[kOutputNRDSpecularReflectance] != nullptr;
-
     // Check if time data should be generated.
     mOutputTime = renderData[kOutputTime] != nullptr;
 
@@ -1587,7 +1540,6 @@ void ReSTIRGIPass::generatePaths(RenderContext* pRenderContext, const RenderData
 
     // Additional specialization. This shouldn't change resource declarations.
     mpGeneratePaths->addDefine("OUTPUT_TIME", mOutputTime ? "1" : "0");
-    mpGeneratePaths->addDefine("OUTPUT_NRD_DATA", mOutputNRDData ? "1" : "0");
 
     // Bind resources.
     auto var = mpGeneratePaths->getRootVar()["CB"]["gPathGenerator"];
@@ -1609,7 +1561,6 @@ void ReSTIRGIPass::tracePass(RenderContext* pRenderContext, const RenderData& re
     bool outputDebug = renderData[kOutputDebug] != nullptr;
     pass->addDefine("OUTPUT_TIME", mOutputTime ? "1" : "0");
     pass->addDefine("OUTPUT_DEBUG", outputDebug ? "1" : "0");
-    pass->addDefine("OUTPUT_NRD_DATA", mOutputNRDData ? "1" : "0");
 
     // Bind global resources.
     auto var = pass->getRootVar();
@@ -1654,7 +1605,6 @@ void ReSTIRGIPass::PathReusePass(RenderContext* pRenderContext, uint32_t restir_
     // Additional specialization. This shouldn't change resource declarations.
     pass->addDefine("OUTPUT_TIME", mOutputTime ? "1" : "0");
     pass->addDefine("TEMPORAL_REUSE", isTemporalReuse ? "1" : "0");
-    pass->addDefine("OUTPUT_NRD_DATA", mOutputNRDData ? "1" : "0");
 
     // Bind resources.
     auto var = pass->getRootVar()["CB"]["gPathReusePass"];
@@ -1698,15 +1648,6 @@ void ReSTIRGIPass::PathReusePass(RenderContext* pRenderContext, uint32_t restir_
             var["gSmallWindowRadius"] = mSmallWindowRestirWindowRadius;
             var["gFeatureBasedRejection"] = mFeatureBasedRejection;
             var["neighborOffsets"] = mpNeighborOffsets;
-        }
-
-        if (mOutputNRDData && !isPathReuseMISWeightComputation)
-        {
-            var["outputNRDDiffuseRadianceHitDist"] = renderData[kOutputNRDDiffuseRadianceHitDist]->asTexture();
-            var["outputNRDSpecularRadianceHitDist"] = renderData[kOutputNRDSpecularRadianceHitDist]->asTexture();
-            var["outputNRDResidualRadianceHitDist"] = renderData[kOutputNRDResidualRadianceHitDist]->asTexture();
-            var["primaryHitEmission"] = renderData[kOutputNRDEmission]->asTexture();
-            var["gSppId"] = restir_i;
         }
     }
 
@@ -1821,7 +1762,6 @@ Program::DefineList ReSTIRGIPass::StaticParams::getDefines(const ReSTIRGIPass& o
     defines.add("DISABLE_CAUSTICS", disableCaustics ? "1" : "0");
     defines.add("DISABLE_DIRECT_ILLUMINATION", disableDirectIllumination ? "1" : "0");
     defines.add("PRIMARY_LOD_MODE", std::to_string((uint32_t)primaryLodMode));
-    defines.add("USE_NRD_DEMODULATION", useNRDDemodulation ? "1" : "0");
     defines.add("COLOR_FORMAT", std::to_string((uint32_t)colorFormat));
     defines.add("MIS_HEURISTIC", std::to_string((uint32_t)misHeuristic));
     defines.add("MIS_POWER_EXPONENT", std::to_string(misPowerExponent));
@@ -1847,8 +1787,6 @@ Program::DefineList ReSTIRGIPass::StaticParams::getDefines(const ReSTIRGIPass& o
     // Set default (off) values for additional features.
     defines.add("OUTPUT_GUIDE_DATA", "0");
     defines.add("OUTPUT_TIME", "0");
-    defines.add("OUTPUT_NRD_DATA", "0");
-    defines.add("OUTPUT_NRD_ADDITIONAL_DATA", "0");
 
     defines.add("SPATIAL_RESTIR_MIS_KIND", std::to_string((uint32_t)spatialMisKind));
     defines.add("TEMPORAL_RESTIR_MIS_KIND", std::to_string((uint32_t)temporalMisKind));

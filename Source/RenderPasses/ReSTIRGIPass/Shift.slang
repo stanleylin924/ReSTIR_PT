@@ -14,7 +14,6 @@ import Rendering.Utils.PixelStats;
 import Scene.RaytracingInline;
 import Scene.Scene;
 import PathTracer;
-import RenderPasses.Shared.Denoising.NRDData;
 
 ParameterBlock<PathTracer> gPathTracer;
 
@@ -208,16 +207,6 @@ float3 traceHybridShiftRays(const RestirPathTracerParams params, bool usePrev, c
     Ray ray = Ray(gScene.camera.getPosition(usePrev), -dstPrimarySd.V, 0, kRayTMax); // this ray can be arbitrary, does not affect results
     float3 Tp = gPathTracer.traceRandomReplayPathHybridSimple(dstPrimaryHit, dstPrimarySd, ray, srcReservoir.pathFlags, srcReservoir.initRandomSeed, dstRcPrevVertexHit, dstRcPrevVertexWo);
     return Tp;
-}
-
-
-void traceDenoiserData(const RestirPathTracerParams params, const PackedHitInfo dstPrimaryHitPacked, const ShadingData dstPrimarySd,
-    ReSTIRPathFlags pathFlags, uint initRandomSeed, inout float hitDist, inout NRDPathType pathType, inout float3 sampleReflectance)
-{
-    HitInfo dstPrimaryHit; dstPrimaryHit.unpack(dstPrimaryHitPacked);
-    Ray ray = Ray(gScene.camera.getPosition(), -dstPrimarySd.V, 0, kRayTMax); // this ray can be arbitrary, does not affect results
-    gPathTracer.traceRandomReplayGetDenoiserData(dstPrimaryHit, dstPrimarySd, ray, pathFlags,
-        initRandomSeed, hitDist, pathType, sampleReflectance);
 }
 
 
