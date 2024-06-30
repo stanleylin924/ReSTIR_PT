@@ -124,7 +124,6 @@ private:
         mEnableTemporalReuse = true;
         mEnableSpatialReuse = true;
         mSpatialReusePattern = SpatialReusePattern::Default;
-        mPathReusePattern = PathReusePattern::NRooksShift;
         mSmallWindowRestirWindowRadius = 2;
         mSpatialNeighborCount = 3;
         mSpatialReuseRadius = 20.f;
@@ -166,7 +165,6 @@ private:
     bool                            mEnableTemporalReuse = true;
     bool                            mEnableSpatialReuse = true;
     SpatialReusePattern             mSpatialReusePattern = SpatialReusePattern::Default;
-    PathReusePattern                mPathReusePattern = PathReusePattern::NRooksShift;
     uint32_t                        mSmallWindowRestirWindowRadius = 2;
     int                             mSpatialNeighborCount = 3;
     float                           mSpatialReuseRadius = 20.f;
@@ -209,7 +207,6 @@ private:
     // enable multiple temporal reservoirs for spp > 1 (multiple ReSTIR chains)
     std::vector<Buffer::SharedPtr>               mpTemporalReservoirs;               ///< Output paths from the path sampling stage.
     Buffer::SharedPtr               mReconnectionDataBuffer;
-    Buffer::SharedPtr               mPathReuseMISWeightBuffer;
 
     Texture::SharedPtr              mpTemporalVBuffer;
 

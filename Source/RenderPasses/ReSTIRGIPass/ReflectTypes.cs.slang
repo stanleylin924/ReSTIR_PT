@@ -12,7 +12,6 @@ import RenderPasses.ReSTIRGIPass.PathReservoir;
 
 StructuredBuffer<PathReservoir> outputReservoirs;
 StructuredBuffer<PixelReconnectionData> reconnectionDataBuffer;
-StructuredBuffer<PathReuseMISWeight> misWeightBuffer;
 
 void main() {}
 

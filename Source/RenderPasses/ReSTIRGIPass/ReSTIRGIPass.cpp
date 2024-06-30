@@ -93,13 +93,6 @@ namespace
         { (uint32_t)ReSTIRMISKind::ConstantBiased, "Constant resampling MIS (constant contribution MIS, biased)" },
     };
 
-    const Gui::DropdownList kPathReusePatternList =
-    {
-        { (uint32_t)PathReusePattern::Block, std::string("Block")},
-        { (uint32_t)PathReusePattern::NRooks, std::string("N-Rooks")},
-        { (uint32_t)PathReusePattern::NRooksShift, std::string("N-Rooks Shift")},
-    };
-
     const Gui::DropdownList kSpatialReusePatternList =
     {
         { (uint32_t)SpatialReusePattern::Default, std::string("Default")},
@@ -1170,8 +1163,6 @@ void ReSTIRGIPass::prepareResources(RenderContext* pRenderContext, const RenderD
             }
             mVarsChanged = true;
         }
-
-        mPathReuseMISWeightBuffer = nullptr;
 
         // Allocate path buffers.
         if (!mpOutputReservoirs || reservoirCount != mpOutputReservoirs->getElementCount())

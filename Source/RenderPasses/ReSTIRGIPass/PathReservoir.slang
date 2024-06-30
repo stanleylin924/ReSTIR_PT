@@ -210,12 +210,6 @@ struct TriMeshHitInfo
     }
 };
 
-struct PathReuseMISWeight
-{
-    float rcBSDFMISWeight;
-    float rcNEEMISWeight;
-}
-
 // 88/128 B
 struct PathReservoir
 {
@@ -279,14 +273,6 @@ struct PathReservoir
         }
 
         return false;
-    }
-
-    [mutating]
-    bool addPathReuseSample(float3 in_F, float in_Jacobian, PathReservoir inReservoir, float misWeight = 1.f)
-    {
-        float3 w = in_F * in_Jacobian * inReservoir.weight * misWeight;
-        F += w;
-        return any(F > 0.f);
     }
 
     [mutating]

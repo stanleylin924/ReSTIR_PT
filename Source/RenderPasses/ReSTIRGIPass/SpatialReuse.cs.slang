@@ -30,7 +30,6 @@ struct PathReusePass
     StructuredBuffer<PathReservoir> outputReservoirs;     // reservoir from previous pass
     RWStructuredBuffer<PathReservoir> temporalReservoirs; // resulting reservoir for next frame
     StructuredBuffer<PixelReconnectionData> reconnectionDataBuffer;
-    StructuredBuffer<PathReuseMISWeight> misWeightBuffer;
 
     int gSpatialRoundId;
     int  gNumSpatialRounds;

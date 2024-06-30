@@ -113,13 +113,6 @@ enum class PathSamplingMode
     PathTracing
 };
 
-enum class PathReusePattern
-{
-    Block,
-    NRooks,
-    NRooksShift
-};
-
 
 // Import static specialization constants.
 #ifndef HOST_CODE
