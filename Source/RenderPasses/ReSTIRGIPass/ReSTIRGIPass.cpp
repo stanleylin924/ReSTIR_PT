@@ -16,7 +16,6 @@ namespace
     const std::string kTemporalReusePassFile = "RenderPasses/ReSTIRGIPass/TemporalReuse.cs.slang";
     const std::string kSpatialPathRetraceFile = "RenderPasses/ReSTIRGIPass/SpatialPathRetrace.cs.slang";
     const std::string kTemporalPathRetraceFile = "RenderPasses/ReSTIRGIPass/TemporalPathRetrace.cs.slang";
-    const std::string kComputePathReuseMISWeightsFile = "RenderPasses/ReSTIRGIPass/ComputePathReuseMISWeights.cs.slang";
 
     // Render pass inputs and outputs.
     const std::string kInputVBuffer = "vbuffer";
@@ -123,7 +122,6 @@ namespace
     const Gui::DropdownList kPathSamplingModeList =
     {
         { (uint32_t)PathSamplingMode::ReSTIR, "ReSTIR PT" },
-        { (uint32_t)PathSamplingMode::PathReuse, "Bekaert-style Path Reuse" },
         { (uint32_t)PathSamplingMode::PathTracing, "Path Tracing" }
     };
 
@@ -251,7 +249,6 @@ void ReSTIRGIPass::registerBindings(pybind11::module& m)
 
     pybind11::enum_<PathSamplingMode> pathSamplingMode(m, "PathSamplingMode");
     pathSamplingMode.value("ReSTIR", PathSamplingMode::ReSTIR);
-    pathSamplingMode.value("PathReuse", PathSamplingMode::PathReuse);
     pathSamplingMode.value("PathTracing", PathSamplingMode::PathTracing);
 
     pybind11::enum_<SpatialReusePattern> spatialReusePattern(m, "SpatialReusePattern");
@@ -306,8 +303,6 @@ ReSTIRGIPass::ReSTIRGIPass(const Dictionary& dict)
     }
     fclose(f);
 
-    mNRooksPatternBuffer = Buffer::create(65536, ResourceBindFlags::ShaderResource, Buffer::CpuAccess::None, NRookArray.data());
-
     // Create sample generator.
     mpSampleGenerator = SampleGenerator::create(mStaticParams.sampleGenerator);
 
@@ -348,12 +343,6 @@ ReSTIRGIPass::ReSTIRGIPass(const Dictionary& dict)
         Program::Desc desc;
         desc.addShaderLibrary(kTemporalReusePassFile).csEntry("main").setShaderModel("6_5");
         mpTemporalReusePass = ComputePass::create(desc, defines, false);
-    }
-
-    {
-        Program::Desc desc;
-        desc.addShaderLibrary(kComputePathReuseMISWeightsFile).csEntry("main").setShaderModel("6_5");
-        mpComputePathReuseMISWeightsPass = ComputePass::create(desc, defines, false);
     }
 
     // Allocate resources that don't change in size.
@@ -646,7 +635,6 @@ void ReSTIRGIPass::setScene(RenderContext* pRenderContext, const Scene::SharedPt
 
         mpSpatialReusePass->getProgram()->addDefines(defines);
         mpTemporalReusePass->getProgram()->addDefines(defines);
-        mpComputePathReuseMISWeightsPass->getProgram()->addDefines(defines);
 
         validateOptions();
 
@@ -663,11 +651,6 @@ void ReSTIRGIPass::execute(RenderContext* pRenderContext, const RenderData& rend
 
     bool skipTemporalReuse = mReservoirFrameCount == 0;
     if (mStaticParams.pathSamplingMode != PathSamplingMode::ReSTIR) mStaticParams.candidateSamples = 1;
-    if (mStaticParams.pathSamplingMode == PathSamplingMode::PathReuse)
-    {
-        mStaticParams.shiftStrategy = ShiftMapping::Reconnection;
-        mEnableSpatialReuse = true;
-    }
     if (mStaticParams.shiftStrategy == ShiftMapping::Hybrid)
     {
         // the ray tracing pass happens before spatial/temporal reuse,
@@ -728,10 +711,6 @@ void ReSTIRGIPass::execute(RenderContext* pRenderContext, const RenderData& rend
                     // a separate pass to trace rays for hybrid shift/random number replay
                     PathReusePass(pRenderContext, restir_i, renderData, true, 0, !mEnableSpatialReuse);
                 }
-            }
-            else if (mStaticParams.pathSamplingMode == PathSamplingMode::PathReuse)
-            {
-                PathReusePass(pRenderContext, restir_i, renderData, false, -1, false);
             }
 
             if (mEnableSpatialReuse)
@@ -831,12 +810,7 @@ bool ReSTIRGIPass::renderRenderingUI(Gui::Widgets& widget)
     bool pathSamplingModeChanged = widget.dropdown("Path Sampling Mode", kPathSamplingModeList, reinterpret_cast<uint32_t&>(mStaticParams.pathSamplingMode));
     if (pathSamplingModeChanged)
     {
-        if (mStaticParams.pathSamplingMode == PathSamplingMode::PathReuse)
-        {
-            mStaticParams.shiftStrategy = ShiftMapping::Reconnection;
-            mStaticParams.separatePathBSDF = false;
-        }
-        else mStaticParams.separatePathBSDF = true;
+        mStaticParams.separatePathBSDF = true;
     }
 
     if (auto group = widget.group("Path Reuse Controls", true))
@@ -898,11 +872,7 @@ bool ReSTIRGIPass::renderRenderingUI(Gui::Widgets& widget)
             dirty |= widget.checkbox("Temporal Reuse", mEnableTemporalReuse);
         }
 
-        if (mStaticParams.pathSamplingMode == PathSamplingMode::PathReuse)
-        {
-            dirty |= widget.dropdown("Bekaert-Style Path Reuse Pattern", kPathReusePatternList, reinterpret_cast<uint32_t&>(mPathReusePattern));
-        }
-        else if (mStaticParams.pathSamplingMode == PathSamplingMode::ReSTIR && mEnableSpatialReuse)
+        if (mStaticParams.pathSamplingMode == PathSamplingMode::ReSTIR && mEnableSpatialReuse)
         {
             if (auto group = widget.group("Spatial reuse controls", true))
             {
@@ -1143,7 +1113,6 @@ void ReSTIRGIPass::updatePrograms()
     mpTemporalPathRetracePass->getProgram()->addDefines(defines);
     mpSpatialReusePass->getProgram()->addDefines(defines);
     mpTemporalReusePass->getProgram()->addDefines(defines);
-    mpComputePathReuseMISWeightsPass->getProgram()->addDefines(defines);
 
     // Recreate program vars. This may trigger recompilation if needed.
     // Note that program versions are cached, so switching to a previously used specialization is faster.
@@ -1154,7 +1123,6 @@ void ReSTIRGIPass::updatePrograms()
     mpTemporalPathRetracePass->setVars(nullptr);
     mpSpatialReusePass->setVars(nullptr);
     mpTemporalReusePass->setVars(nullptr);
-    mpComputePathReuseMISWeightsPass->setVars(nullptr);
 
     mVarsChanged = true;
     mRecompile = false;
@@ -1189,14 +1157,12 @@ void ReSTIRGIPass::prepareResources(RenderContext* pRenderContext, const RenderD
         uint32_t pathTreeReservoirSize = 128;
 
         if (mpOutputReservoirs &&
-            (mStaticParams.pathSamplingMode == PathSamplingMode::PathReuse && mpOutputReservoirs->getElementSize() != pathTreeReservoirSize ||
-                mStaticParams.pathSamplingMode != PathSamplingMode::PathReuse && mpOutputReservoirs->getElementSize() != baseReservoirSize ||
-                mpTemporalReservoirs.size() != mStaticParams.samplesPerPixel && mStaticParams.pathSamplingMode != PathSamplingMode::PathReuse))
+            (mpOutputReservoirs->getElementSize() != baseReservoirSize ||
+                mpTemporalReservoirs.size() != mStaticParams.samplesPerPixel))
         {
             mpOutputReservoirs = Buffer::createStructured(var["outputReservoirs"], reservoirCount, Resource::BindFlags::ShaderResource | Resource::BindFlags::UnorderedAccess, Buffer::CpuAccess::None, nullptr, false);
             //printf("reservoir size: %d\n", mpOutputReservoirs->getElementSize());
 
-            if (mStaticParams.pathSamplingMode != PathSamplingMode::PathReuse)
             {
                 mpTemporalReservoirs.resize(mStaticParams.samplesPerPixel);
                 for (uint32_t i = 0; i < mStaticParams.samplesPerPixel; i++)
@@ -1205,16 +1171,7 @@ void ReSTIRGIPass::prepareResources(RenderContext* pRenderContext, const RenderD
             mVarsChanged = true;
         }
 
-        if (mStaticParams.pathSamplingMode == PathSamplingMode::PathReuse)
-        {
-            if (!mPathReuseMISWeightBuffer)
-            {
-                mPathReuseMISWeightBuffer = Buffer::createStructured(var["misWeightBuffer"], reservoirCount, Resource::BindFlags::ShaderResource | Resource::BindFlags::UnorderedAccess, Buffer::CpuAccess::None, nullptr, false);
-                mVarsChanged = true;
-            }
-            mpTemporalReservoirs.clear();
-        }
-        else mPathReuseMISWeightBuffer = nullptr;
+        mPathReuseMISWeightBuffer = nullptr;
 
         // Allocate path buffers.
         if (!mpOutputReservoirs || reservoirCount != mpOutputReservoirs->getElementCount())
@@ -1222,11 +1179,6 @@ void ReSTIRGIPass::prepareResources(RenderContext* pRenderContext, const RenderD
             mpOutputReservoirs = Buffer::createStructured(var["outputReservoirs"], reservoirCount, Resource::BindFlags::ShaderResource | Resource::BindFlags::UnorderedAccess, Buffer::CpuAccess::None, nullptr, false);
             //printf("reservoir size: %d\n", mpOutputReservoirs->getElementSize());
 
-            if (mStaticParams.pathSamplingMode == PathSamplingMode::PathReuse)
-            {
-                mPathReuseMISWeightBuffer = Buffer::createStructured(var["misWeightBuffer"], reservoirCount, Resource::BindFlags::ShaderResource | Resource::BindFlags::UnorderedAccess, Buffer::CpuAccess::None, nullptr, false);
-            }
-            else
             {
                 mpTemporalReservoirs.resize(mStaticParams.samplesPerPixel);
                 for (uint32_t i = 0; i < mStaticParams.samplesPerPixel; i++)
@@ -1377,7 +1329,6 @@ bool ReSTIRGIPass::prepareLighting(RenderContext* pRenderContext)
         if (mpTemporalPathRetracePass->getProgram()->addDefines(defines)) mRecompile = true;
         if (mpSpatialReusePass->getProgram()->addDefines(defines)) mRecompile = true;
         if (mpTemporalReusePass->getProgram()->addDefines(defines)) mRecompile = true;
-        if (mpComputePathReuseMISWeightsPass->getProgram()->addDefines(defines)) mRecompile = true;
     }
 
     return lightingChanged;
@@ -1582,17 +1533,9 @@ void ReSTIRGIPass::tracePass(RenderContext* pRenderContext, const RenderData& re
 
 void ReSTIRGIPass::PathReusePass(RenderContext* pRenderContext, uint32_t restir_i, const RenderData& renderData, bool isTemporalReuse, int spatialRoundId, bool isLastRound)
 {
-    bool isPathReuseMISWeightComputation = spatialRoundId == -1;
+    PROFILE(isTemporalReuse ? "temporalReuse" : "spatialReuse");
 
-    PROFILE(isTemporalReuse ? "temporalReuse" : (isPathReuseMISWeightComputation ? "MISWeightComputation" : "spatialReuse"));
-
-    ComputePass::SharedPtr pass = isPathReuseMISWeightComputation ? mpComputePathReuseMISWeightsPass : (isTemporalReuse ? mpTemporalReusePass : mpSpatialReusePass);
-
-    if (isPathReuseMISWeightComputation)
-    {
-        spatialRoundId = 0;
-        restir_i = 0;
-    }
+    ComputePass::SharedPtr pass = isTemporalReuse ? mpTemporalReusePass : mpSpatialReusePass;
 
     // Check shader assumptions.
     // We launch one thread group per screen tile, with threads linearly indexed.
@@ -1613,16 +1556,7 @@ void ReSTIRGIPass::PathReusePass(RenderContext* pRenderContext, uint32_t restir_
     setShaderData(var, renderData, false, false);
 
     var["outputReservoirs"] = spatialRoundId % 2 == 1 ? mpTemporalReservoirs[restir_i] : mpOutputReservoirs;
-
-    if (mStaticParams.pathSamplingMode == PathSamplingMode::PathReuse)
-    {
-        var["nRooksPattern"] = mNRooksPatternBuffer;
-    }
-
-    if (mStaticParams.pathSamplingMode == PathSamplingMode::PathReuse)
-        var["misWeightBuffer"] = mPathReuseMISWeightBuffer;
-    else if (!isPathReuseMISWeightComputation)
-        var["temporalReservoirs"] = spatialRoundId % 2 == 0 ? mpTemporalReservoirs[restir_i] : mpOutputReservoirs;
+    var["temporalReservoirs"] = spatialRoundId % 2 == 0 ? mpTemporalReservoirs[restir_i] : mpOutputReservoirs;
     var["reconnectionDataBuffer"] = mReconnectionDataBuffer;
 
     var["gNumSpatialRounds"] = mNumSpatialRounds;
@@ -1638,9 +1572,8 @@ void ReSTIRGIPass::PathReusePass(RenderContext* pRenderContext, uint32_t restir_
     }
     else
     {
-        var["gSpatialReusePattern"] = mStaticParams.pathSamplingMode == PathSamplingMode::PathReuse ? (uint32_t)mPathReusePattern : (uint32_t)mSpatialReusePattern;
+        var["gSpatialReusePattern"] = (uint32_t)mSpatialReusePattern;
 
-        if (!isPathReuseMISWeightComputation)
         {
             var["gNeighborCount"] = mSpatialNeighborCount;
             var["gGatherRadius"] = mSpatialReuseRadius;
@@ -1652,12 +1585,11 @@ void ReSTIRGIPass::PathReusePass(RenderContext* pRenderContext, uint32_t restir_
     }
 
 
-    if (!isPathReuseMISWeightComputation)
     {
         var["directLighting"] = renderData[kInputDirectLighting]->asTexture();
         var["useDirectLighting"] = mUseDirectLighting;
     }
-    var["gIsLastRound"] = mStaticParams.pathSamplingMode == PathSamplingMode::PathReuse || isLastRound;
+    var["gIsLastRound"] = isLastRound;
 
     pass["gScene"] = mpScene->getParameterBlock();
     pass["gPathTracer"] = mpPathTracerBlock;
@@ -1695,12 +1627,6 @@ void ReSTIRGIPass::PathRetracePass(RenderContext* pRenderContext, uint32_t resti
     // TODO: refactor arguments
     setShaderData(var, renderData, false, false);
     var["outputReservoirs"] = spatialRoundId % 2 == 1 ? mpTemporalReservoirs[restir_i] : mpOutputReservoirs;
-
-    if (mStaticParams.pathSamplingMode == PathSamplingMode::PathReuse)
-    {
-        var["nRooksPattern"] = mNRooksPatternBuffer;
-    }
-
     var["temporalReservoirs"] = spatialRoundId % 2 == 0 ? mpTemporalReservoirs[restir_i] : mpOutputReservoirs;
     var["reconnectionDataBuffer"] = mReconnectionDataBuffer;
     var["gNumSpatialRounds"] = mNumSpatialRounds;
@@ -1721,7 +1647,7 @@ void ReSTIRGIPass::PathRetracePass(RenderContext* pRenderContext, uint32_t resti
         var["gGatherRadius"] = mSpatialReuseRadius;
         var["gNeighborCount"] = mSpatialNeighborCount;
         var["gSmallWindowRadius"] = mSmallWindowRestirWindowRadius;
-        var["gSpatialReusePattern"] = mStaticParams.pathSamplingMode == PathSamplingMode::PathReuse ? (uint32_t)mPathReusePattern : (uint32_t)mSpatialReusePattern;
+        var["gSpatialReusePattern"] = (uint32_t)mSpatialReusePattern;
         var["gFeatureBasedRejection"] = mFeatureBasedRejection;
     }
 
@@ -1792,8 +1718,6 @@ Program::DefineList ReSTIRGIPass::StaticParams::getDefines(const ReSTIRGIPass& o
     defines.add("TEMPORAL_RESTIR_MIS_KIND", std::to_string((uint32_t)temporalMisKind));
 
     defines.add("TEMPORAL_UPDATE_FOR_DYNAMIC_SCENE", temporalUpdateForDynamicScene ? "1" : "0");
-
-    defines.add("BPR", pathSamplingMode == PathSamplingMode::PathReuse ? "1" : "0");
 
     defines.add("SEPARATE_PATH_BSDF", separatePathBSDF ? "1" : "0");
 

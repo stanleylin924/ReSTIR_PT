@@ -110,7 +110,6 @@ enum class SpatialReusePattern
 enum class PathSamplingMode
 {
     ReSTIR,
-    PathReuse,
     PathTracing
 };
 

@@ -28,8 +28,6 @@ struct PathRetracePass
     Texture2D<PackedHitInfo> temporalVbuffer;
     Texture2D<float2> motionVectors;
 
-    ByteAddressBuffer nRooksPattern;
-
     RWTexture2D<float4> outputColor;                      ///< Output resolved color.
     RWStructuredBuffer<PathReservoir> outputReservoirs;                  
     RWStructuredBuffer<PathReservoir> temporalReservoirs;

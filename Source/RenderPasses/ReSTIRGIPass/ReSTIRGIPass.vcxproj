@@ -36,7 +36,6 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <ShaderSource Include="ComputePathReuseMISWeights.cs.slang" />
     <ShaderSource Include="GeneratePaths.cs.slang" />
     <ShaderSource Include="LoadShadingData.slang" />
     <ShaderSource Include="Params.slang" />

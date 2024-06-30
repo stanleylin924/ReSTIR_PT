@@ -1053,18 +1053,8 @@ struct PathTracer
             // daqi: here we are adding the path terminated with an escaped vertex
             if ((!path.enableRandomReplay || terminateRandomReplayForEscape) && PathSamplingMode(kPathSamplingMode) != PathSamplingMode::PathTracing)
             {
-#if BPR
-                if (path.length - 1 > path.pathBuilder.rcVertexLength)
-                {
-                    path.rcVertexPathTreeIrradiance += path.thp * sd.emissive * misWeight;
-                }
-                bool selectedCurrentPath = path.pathBuilder.addEscapeVertex(params, max(0, path.length - 1), path.dir, Lr, 
-                    path.length - 1 == path.pathBuilder.rcVertexLength ? path.thp * sd.emissive * misWeight : path.rcVertexPathTreeIrradiance,
-                    path.useHybridShift, path.russianRoulettePdf, misWeight, lightPdf, (uint)LightSampleType::Emissive, path.pathReservoir, path.enableRandomReplay);
-#else
                 bool selectedCurrentPath = path.pathBuilder.addEscapeVertex(params, max(0, path.length - 1), path.dir, Lr, path.thp * sd.emissive * misWeight, 
                     path.useHybridShift, path.russianRoulettePdf, misWeight, lightPdf, (uint)LightSampleType::Emissive, path.pathReservoir, path.enableRandomReplay);
-#endif
 
                 // daqi: if current escaped vertex has path.length >= 2, then it can be used as a rcVertex
                 if (selectedCurrentPath&& path.useHybridShift&& path.length >= 2 && path.length < path.pathBuilder.rcVertexLength)
@@ -1309,19 +1299,9 @@ struct PathTracer
                                 {
                                     weight = 1.f;
                                 }
-#if BPR
-                                if (!is_rcVertex)
-                                {
-                                    path.rcVertexPathTreeIrradiance += weight * ls.Li * path.thp;
-                                }
 
-                                bool selected = path.pathBuilder.addNeeVertex(params, path.length, ls.dir, Lr, 
-                                    is_rcVertex ? weight * ls.Li * path.thp : path.rcVertexPathTreeIrradiance, path.useHybridShift,
-                                    path.russianRoulettePdf, misWeight, ls.pdf, ls.lightType, path.pathReservoir, path.enableRandomReplay);
-#else
                                 bool selected = path.pathBuilder.addNeeVertex(params, path.length, ls.dir, Lr, weight * ls.Li * path.thp, path.useHybridShift,
                                     path.russianRoulettePdf, misWeight, ls.pdf, ls.lightType, path.pathReservoir, path.enableRandomReplay);
-#endif
                             }
                         }
                     }
@@ -1407,7 +1387,7 @@ struct PathTracer
         }
 
         // daqi: save the incoming direction on rcVertex
-        if (is_rcVertex && valid && (int(path.length > 1) == 0 || !BPR))
+        if (is_rcVertex && valid)
         {
             path.pathBuilder.rcVertexWi[0] = path.dir;
         }
@@ -1491,18 +1471,9 @@ struct PathTracer
             // daqi: here we are adding the path terminated with an escaped vertex
             if ((!path.enableRandomReplay || terminateRandomReplayForEscape) && PathSamplingMode(kPathSamplingMode) != PathSamplingMode::PathTracing)
             {
-#if BPR
-                if (path.length > path.pathBuilder.rcVertexLength)
-                {
-                    path.rcVertexPathTreeIrradiance += path.thp * Le * misWeight;
-                }
-                bool selectedCurrentPath = path.pathBuilder.addEscapeVertex(params, path.length, path.dir, Lr, 
-                    path.length == path.pathBuilder.rcVertexLength ? path.thp * Le * misWeight : path.rcVertexPathTreeIrradiance,
-                    path.useHybridShift, path.russianRoulettePdf, misWeight, lightPdf, (uint)LightSampleType::EnvMap, path.pathReservoir, path.enableRandomReplay);
-#else
                 bool selectedCurrentPath = path.pathBuilder.addEscapeVertex(params, path.length, path.dir, Lr, path.thp * Le * misWeight, 
                     path.useHybridShift, path.russianRoulettePdf, misWeight, lightPdf, (uint)LightSampleType::EnvMap, path.pathReservoir, path.enableRandomReplay);
-#endif
+
                 // daqi: if current escaped vertex has path.length >= 2, then it can be used as a rcVertex
                 if (selectedCurrentPath && path.useHybridShift && path.length >= 1 && path.length + 1 < path.pathBuilder.rcVertexLength)
                 {
@@ -1788,16 +1759,6 @@ struct PathTracer
 
             if (PathSamplingMode(kPathSamplingMode) == PathSamplingMode::PathTracing)
                 L += path.L;
-            else if (PathSamplingMode(kPathSamplingMode) == PathSamplingMode::PathReuse)
-            {
-                path.pathReservoir.weight = 1.f;
-                if (isLastRound)
-                {
-                    float3 color = path.pathReservoir.F + path.pathReservoir.cachedJacobian;
-                    if (any(isinf(color) || isnan(color))) color = 0.f;
-                    L += color;
-                }
-            }
             else
             {
                 path.pathReservoir.finalizeRIS();

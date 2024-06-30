@@ -28,8 +28,6 @@ struct PathRetracePass
     Texture2D<PackedHitInfo> vbuffer;                     ///< Fullscreen V-buffer for the primary hits.
     Texture1D<float2> neighborOffsets;
 
-    ByteAddressBuffer nRooksPattern;
-
     RWTexture2D<float4> outputColor;                      ///< Output resolved color.
     RWStructuredBuffer<PathReservoir> outputReservoirs;                  ///< New per-pixel paths.
     RWStructuredBuffer<PathReservoir> temporalReservoirs;

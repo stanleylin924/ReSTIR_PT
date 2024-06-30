@@ -24,11 +24,7 @@ float3 computeShiftedIntegrandExtraOutput(
     PathReservoir tempReservoir = srcReservoir;
     float3 res = computeShiftedIntegrand_(params, dstJacobian, dstPrimaryHitPacked, dstPrimarySd,
         srcPrimarySd, tempReservoir, rcData, evalVisibility, usePrev, temporalUpdateForDynamicScene);
-    if (PathSamplingMode(kPathSamplingMode) == PathSamplingMode::PathReuse) // for precomputing MIS weights
-    {
-        dstJacobian = tempReservoir.cachedJacobian[0];
-        output2 = tempReservoir.cachedJacobian[1];
-    }
+
     return res;
 }
 
@@ -39,10 +35,7 @@ float3 computeShiftedIntegrand(
     PathReservoir tempReservoir = srcReservoir;
     float3 res = computeShiftedIntegrand_(params, dstJacobian, dstPrimaryHitPacked, dstPrimarySd,
         srcPrimarySd, tempReservoir, rcData, evalVisibility, usePrev, temporalUpdateForDynamicScene);
-    if (PathSamplingMode(kPathSamplingMode) == PathSamplingMode::PathReuse) // for precomputing MIS weights
-    {
-        dstJacobian = tempReservoir.cachedJacobian[0];
-    }
+
     return res;
 }
 
@@ -55,23 +48,12 @@ float3 computeShiftedIntegrand_(const RestirPathTracerParams params, inout float
 
     if (ShiftMapping(kShiftStrategy) == ShiftMapping::Reconnection)
     {
-#if BPR
-        float3 res = computeShiftedIntegrandReconnectionPathTree(params, dstJacobian, dstPrimarySd, srcPrimarySd, srcReservoir, evalVisibility);
-        if (PathSamplingMode(kPathSamplingMode) == PathSamplingMode::PathReuse && all(res == 0)) // Nan, inf
-        {
-            srcReservoir.cachedJacobian[0] = 0;
-            srcReservoir.cachedJacobian[1] = 0;
-        }
-        return res;
-#else
-
         if (temporalUpdateForDynamicScene && kTemporalUpdateForDynamicScene)
         {
             gPathTracer.traceTemporalUpdate(dstPrimarySd, srcReservoir);
         }
 
         return computeShiftedIntegrandReconnection(params, dstJacobian, dstPrimarySd, srcPrimarySd, srcReservoir, evalVisibility);
-#endif
     }
     else if (ShiftMapping(kShiftStrategy) == ShiftMapping::RandomReplay)
     {
@@ -215,157 +197,6 @@ bool isJacobianInvalid(float Jacobian)
     return Jacobian <= 0.f || isnan(Jacobian) || isinf(Jacobian);
 }
 
-#if BPR
-float3 computeShiftedIntegrandReconnectionPathTree(const RestirPathTracerParams params, inout float dstJacobian, ShadingData dstPrimarySd,
-    ShadingData srcPrimarySd, inout PathReservoir srcReservoir, bool evalVisibility)
-{
-    dstJacobian = 0.f;
-
-    int rcVertexLength = 1;
-    HitInfo rcVertexHit = srcReservoir.rcVertexHit.getHitInfo();
-    float3 rcVertexIrradiance = srcReservoir.rcVertexIrradiance[0];
-
-    float3 rcVertexBSDFLightSamplingIrradiance = srcReservoir.rcVertexBSDFLightSamplingIrradiance;
-    float3 rcVertexWi = srcReservoir.rcVertexWi[0];
-
-    bool rcVertexHitExists = rcVertexHit.isValid();
-    if (!rcVertexHitExists)
-    {
-        return 0.f;
-    }
-    bool isTransmission = srcReservoir.pathFlags.decodeIsTransmissionEvent(true, false);
-
-    srcPrimarySd.posW = srcPrimarySd.computeNewRayOrigin(!isTransmission);
-    dstPrimarySd.posW = dstPrimarySd.computeNewRayOrigin(!isTransmission);
-
-    bool isDelta1 = srcReservoir.pathFlags.decodeIsDeltaEvent(true);
-    bool isDelta2 = srcReservoir.pathFlags.decodeIsDeltaEvent(false);
-
-    // delta bounce before/after rcVertex (if isRcVertexNEE, deltaAfterRc won't be set)
-    if (isDelta1 || isDelta2)
-        if (any(srcPrimarySd.posW != dstPrimarySd.posW))
-            return 0.f;
-
-    ShadingData rcVertexSd = loadShadingDataWithPrevVertexPosition(rcVertexHit, dstPrimarySd.posW, false);
-
-    // need to evaluate source PDF of BSDF sampling
-    float3 dstConnectionV = -rcVertexSd.V; // direction point from dst primary hit point to reconnection vertex
-    float3 srcConnectionV = normalize(rcVertexSd.posW - srcPrimarySd.posW);
-
-    float3 shiftedDisp = rcVertexSd.posW - dstPrimarySd.posW;
-    float shifted_dist2 = dot(shiftedDisp, shiftedDisp);
-    float shifted_cosine = abs(dot(rcVertexSd.faceN, -dstConnectionV));
-
-    float3 originalDisp = rcVertexSd.posW - srcPrimarySd.posW;
-    float original_dist2 = dot(originalDisp, originalDisp);
-    float original_cosine = abs(dot(rcVertexSd.faceN, -srcConnectionV));
-    float Jacobian = shifted_cosine / shifted_dist2 * original_dist2 / original_cosine;
-    if (isJacobianInvalid(Jacobian)) return 0.f;
-
-    // assuming BSDF sampling
-    assert(kUseBSDFSampling);
-
-    uint allowedSampledTypes1 = getAllowedBSDFFlags(srcReservoir.pathFlags.decodeIsSpecularBounce(true));
-
-    // assuming bsdf sampling
-    float dstPDF1 = evalPdfBSDF(dstPrimarySd, dstConnectionV, allowedSampledTypes1, isDelta1);
-    float srcPDF1 = evalPdfBSDF(srcPrimarySd, srcConnectionV, allowedSampledTypes1, isDelta1); //
-
-    Jacobian *= dstPDF1 / srcPDF1; // this is the only jacobian we need for computing MIS weight for path reuse NEE
-
-    if (isJacobianInvalid(Jacobian)) return 0.f;
-
-    float3 dstF1 = evalBSDFCosine(dstPrimarySd, dstConnectionV, allowedSampledTypes1, isDelta1);
-    float3 dstIntegrand = dstF1 / dstPDF1; 
-
-    float3 dstIntegrandNEE;
-
-    float NEEJacobian = Jacobian;
-    float BSDFSamplingJacobian = 0.f;
-
-    dstIntegrandNEE = 0.f;
-    if (kUseNEE && any(srcReservoir.rcVertexIrradiance[1] > 0.f))
-    {
-        float3 dstF2NEE = evalBSDFCosine(rcVertexSd, srcReservoir.rcVertexWi[1]);
-        float dstPDF2NEE = srcReservoir.rcLightPdf;
-        float dstRcVertexNEEScatterPdf = evalPdfBSDF(rcVertexSd, srcReservoir.rcVertexWi[1]);
-
-        dstIntegrandNEE = dstF2NEE / dstPDF2NEE * srcReservoir.rcVertexIrradiance[1];
-        float misWeightNEE = 1.f;
-
-        if (kUseMIS && srcReservoir.rcLightType() != (uint)PathTracer::LightSampleType::Analytic)
-        {
-            float lightPdf = dstPDF2NEE;
-            misWeightNEE *= PathTracer::evalMIS(1, lightPdf, 1, dstRcVertexNEEScatterPdf);
-        }
-        dstIntegrandNEE *= misWeightNEE;
-    }
-
-    uint allowedSampledTypes2 = getAllowedBSDFFlags(srcReservoir.pathFlags.decodeIsSpecularBounce(false));
-
-    float3 dstIntegrandBSDFSampling = 0;
-
-    if (any(rcVertexIrradiance > 0) || any(rcVertexBSDFLightSamplingIrradiance > 0))
-    {
-        float dstRcVertexScatterPdfAll = 0.f;
-
-        // assuming bsdf sampling
-        float dstRcVertexScatterPdf = evalPdfBSDF(rcVertexSd, rcVertexWi, dstRcVertexScatterPdfAll, allowedSampledTypes2, isDelta2);
-        float srcRcVertexScatterPdf = evalPdfBSDFWithV(rcVertexSd, -srcConnectionV, rcVertexWi, allowedSampledTypes2, isDelta2);
-        float dstPDF2 = dstRcVertexScatterPdf;
-
-        float3 dstF2 = evalBSDFCosine(rcVertexSd, rcVertexWi, allowedSampledTypes2, isDelta2);
-
-        float lightPdfBSDFSampling = srcReservoir.lightPdf;
-
-        dstIntegrandBSDFSampling = dstF2 / dstPDF2 * rcVertexIrradiance;
-
-        // include MIS
-        if (kUseMIS || !kUseNEE)
-        {
-            if (any(rcVertexBSDFLightSamplingIrradiance > 0))
-            {
-                float misWeightBSDFSampling = PathTracer::evalMIS(1, dstRcVertexScatterPdfAll, 1, lightPdfBSDFSampling);
-                dstIntegrandBSDFSampling += dstF2 / dstPDF2 * rcVertexBSDFLightSamplingIrradiance * misWeightBSDFSampling;
-            }
-        }
-
-        Jacobian *= dstRcVertexScatterPdf / srcRcVertexScatterPdf;
-
-        BSDFSamplingJacobian = Jacobian;
-    }
-
-    if (isJacobianInvalid(Jacobian)) return 0.f;
-
-    // Evaluate visibility: vertex 1 <-> vertex 2 (reconnection vertex).
-    if (evalVisibility)
-    {
-        bool isVisible = evalSegmentVisibility(dstPrimarySd.posW, rcVertexSd.posW);
-        if (!isVisible)
-        {
-            return 0.f;
-        }
-    }
-
-    // non-invertible case
-    srcReservoir.rcVertexIrradiance[0] = dstIntegrand * dstIntegrandBSDFSampling;
-    if (all(srcReservoir.rcVertexIrradiance[0] == 0.f)) BSDFSamplingJacobian = 0.f;
-
-    srcReservoir.rcVertexIrradiance[1] = dstIntegrand * dstIntegrandNEE;
-    if (all(srcReservoir.rcVertexIrradiance[1] == 0.f)) NEEJacobian = 0.f;
-
-    dstIntegrand = dstIntegrand * (dstIntegrandBSDFSampling + dstIntegrandNEE);
-
-    if (any(isnan(dstIntegrand) || isinf(dstIntegrand))) return 0.f;
-
-    srcReservoir.cachedJacobian[0] = BSDFSamplingJacobian;
-    srcReservoir.cachedJacobian[1] = NEEJacobian;
-
-    dstJacobian = Jacobian; // product jacobian
-
-    return dstIntegrand;
-}
-#endif
 
 // dstPdf * dstJacobian transforms pdf in dst space to src space
 // srcPdf / dstJacobian transforms pdf in src space to dst space
@@ -568,24 +399,6 @@ bool shiftAndMergeReservoir(const RestirPathTracerParams params, bool temporalUp
     float3 dstIntegrand = computeShiftedIntegrand_(params, dstJacobian, dstPrimaryHitPacked, dstPrimarySd, srcPrimarySd,
                                                             tempPathReservoir, rcData, evalVisibility, false, temporalUpdateForDynamicScene);
 
-    if (PathSamplingMode(kPathSamplingMode) == PathSamplingMode::PathReuse)
-    {
-        dstReservoir.F = dstIntegrand;
-        dstReservoir.pathFlags = tempPathReservoir.pathFlags;
-        dstReservoir.rcRandomSeed = tempPathReservoir.rcRandomSeed;
-        dstReservoir.initRandomSeed = tempPathReservoir.initRandomSeed;
-        dstReservoir.cachedJacobian = tempPathReservoir.cachedJacobian;
-        dstReservoir.lightPdf = tempPathReservoir.lightPdf;
-        dstReservoir.rcVertexWi[0] = tempPathReservoir.rcVertexWi[0];
-        dstReservoir.rcVertexHit = tempPathReservoir.rcVertexHit;
-        dstReservoir.rcVertexIrradiance[0] = tempPathReservoir.rcVertexIrradiance[0];
-        dstReservoir.rcVertexWi[1] = tempPathReservoir.rcVertexWi[1];
-        dstReservoir.rcVertexIrradiance[1] = tempPathReservoir.rcVertexIrradiance[1];
-        dstReservoir.weight = tempPathReservoir.weight;
-
-        return any(dstReservoir.F > 0);
-    }
-    else
     {
         bool selected = dstReservoir.merge(dstIntegrand, dstJacobian, tempPathReservoir, sg, misWeight, forceMerge);
 

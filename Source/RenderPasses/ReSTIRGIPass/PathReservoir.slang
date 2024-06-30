@@ -12,11 +12,7 @@ import Utils.Math.Ray;
 import Params;
 import Utils.Math.PackedFormats;
 
-#if BPR// path reuse
-static const int kRcAttrCount = 2;
-#else
 static const int kRcAttrCount = 1;
-#endif
 
 struct ReSTIRPathFlags
 {
@@ -235,24 +231,6 @@ struct PathReservoir
     float3 rcVertexWi[kRcAttrCount]; // incident direction on reconnection vertex
     float3 rcVertexIrradiance[kRcAttrCount]; // sampled irradiance on reconnection vertex
 
-#if BPR
-    float rcLightPdf; 
-    float3 rcVertexBSDFLightSamplingIrradiance;
-
-    uint rcLightType()
-    {
-        return (pathFlags.flags >> 30) & 3;
-    }
-
-    [mutating]
-    void insertRcLightType(uint lightType)
-    {
-        pathFlags.flags &= ~(3 << 30);
-        pathFlags.flags |= ((int)lightType & 3) << 30;
-    }
-
-#endif
-
     // [0] -- (the rcVertex at x2, secondary hit point)
     // [1] -- (the rcVertex at a bounce chosen by the hybrid shift heuristics)
 
@@ -264,12 +242,6 @@ struct PathReservoir
         pathFlags.flags = 0;
         pathFlags.insertRcVertexLength(kMaximumPathLength);
         F = 0.f;
-
-#if BPR
-        rcVertexBSDFLightSamplingIrradiance = 0.f;
-        rcVertexIrradiance[0] = 0.f;
-        rcVertexIrradiance[1] = 0.f;
-#endif
 
         // set rcVertex as invalid
         rcVertexHit.instanceID = 0xffffffff;
@@ -339,12 +311,6 @@ struct PathReservoir
             rcVertexWi[0] = inReservoir.rcVertexWi[0];
             rcVertexHit = inReservoir.rcVertexHit;
             rcVertexIrradiance[0] = inReservoir.rcVertexIrradiance[0];
-#if BPR // support two rcs
-            rcVertexWi[1] = inReservoir.rcVertexWi[1];
-            rcVertexIrradiance[1] = inReservoir.rcVertexIrradiance[1];
-            rcVertexBSDFLightSamplingIrradiance = inReservoir.rcVertexBSDFLightSamplingIrradiance;
-            rcLightPdf = inReservoir.rcLightPdf;
-#endif
             F = in_F;
             return true;
         }
@@ -374,12 +340,6 @@ struct PathReservoir
             rcVertexWi[0] = inReservoir.rcVertexWi[0];
             rcVertexHit = inReservoir.rcVertexHit;
             rcVertexIrradiance[0] = inReservoir.rcVertexIrradiance[0];
-#if BPR
-            rcVertexWi[1] = inReservoir.rcVertexWi[1];
-            rcVertexIrradiance[1] = inReservoir.rcVertexIrradiance[1];
-            rcVertexBSDFLightSamplingIrradiance = inReservoir.rcVertexBSDFLightSamplingIrradiance;
-            rcLightPdf = inReservoir.rcLightPdf;
-#endif
             F = in_F;
             return true;
         }
@@ -411,12 +371,6 @@ struct PathReservoir
             rcVertexWi[0] = inReservoir.rcVertexWi[0];
             rcVertexHit = inReservoir.rcVertexHit;
             rcVertexIrradiance[0] = inReservoir.rcVertexIrradiance[0];
-#if BPR
-            rcVertexWi[1] = inReservoir.rcVertexWi[1];
-            rcVertexIrradiance[1] = inReservoir.rcVertexIrradiance[1];
-            rcVertexBSDFLightSamplingIrradiance = inReservoir.rcVertexBSDFLightSamplingIrradiance;
-            rcLightPdf = inReservoir.rcLightPdf;
-#endif
             F = inReservoir.F;
             return true;
         }

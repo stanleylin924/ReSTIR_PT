@@ -26,8 +26,6 @@ struct PathReusePass
     Texture2D<PackedHitInfo> vbuffer;                     ///< Fullscreen V-buffer for the primary hits.
     Texture1D<float2> neighborOffsets;
 
-    ByteAddressBuffer nRooksPattern;
-
     RWTexture2D<float4> outputColor;                      ///< Output resolved color.
     StructuredBuffer<PathReservoir> outputReservoirs;     // reservoir from previous pass
     RWStructuredBuffer<PathReservoir> temporalReservoirs; // resulting reservoir for next frame
@@ -85,8 +83,6 @@ struct PathReusePass
 
     int getNeighborCount()
     {
-        if (PathSamplingMode(kPathSamplingMode) == PathSamplingMode::PathReuse) return 16; //include self
-        else
         {
             if (SpatialReusePattern(gSpatialReusePattern) == SpatialReusePattern::Default)
             {
@@ -97,25 +93,6 @@ struct PathReusePass
                 int smallWindowDiameter = 2 * gSmallWindowRadius + 1;
                 return smallWindowDiameter * smallWindowDiameter; // count self, but not use self as neighbor
             }
-        }
-    }
-
-    int2 getPathReuseNextNeighborPixel(int4 NRookQuery, int2 pixel, int i)
-    {
-        // 
-        if (PathReusePattern(gSpatialReusePattern) == PathReusePattern::Block)
-        {
-            int2 block = pixel / 4;
-            return 4 * block + int2(i % 4, i / 4);
-        }
-        else
-        {
-            // fetch neighbors
-            int groupId = NRookQuery.z;
-            uint2 words = nRooksPattern.Load2(NRookQuery.w * 256 + groupId * 8);
-            int rowId = (words[i / 8] >> (4 * (i % 8))) & 0xF;
-
-            return int2(i, rowId) - NRookQuery.xy + pixel;
         }
     }
 
@@ -156,8 +133,7 @@ struct PathReusePass
 
         if (!isValidPackedHitInfo(centralPrimaryHitPacked)) return;
 
-        if (PathSamplingMode(kPathSamplingMode) == PathSamplingMode::PathReuse ||
-            (ReSTIRMISKind(kSpatialReSTIRMISKind) == ReSTIRMISKind::Talbot || ReSTIRMISKind(kSpatialReSTIRMISKind) == ReSTIRMISKind::Pairwise))
+        if (ReSTIRMISKind(kSpatialReSTIRMISKind) == ReSTIRMISKind::Talbot || ReSTIRMISKind(kSpatialReSTIRMISKind) == ReSTIRMISKind::Pairwise)
         {
             dstReservoir.init();
         }
@@ -173,78 +149,6 @@ struct PathReusePass
         int neighborCount = getNeighborCount();
         const uint startIndex = sampleNext1D(sg) * kNeighborOffsetCount;
 
-#if BPR
-        ////////////////////////////////
-        /// BEKAERT-STYLE PATH REUSE ///
-        ////////////////////////////////
-        {
-            dstReservoir.F = 0.f;
-            int blockShiftOffset;
-            int4 NRookQuery = 0;
-            int2 pixelInBlock;
-            if (PathReusePattern(gSpatialReusePattern) == PathReusePattern::NRooks) blockShiftOffset = 16;
-            else blockShiftOffset = params.seed % 16;
-            if (PathReusePattern(gSpatialReusePattern) == PathReusePattern::Block)
-                pixelInBlock.x = 4 * (pixel.y % 4) + (pixel.x % 4);
-            else
-            {
-                int2 block = (pixel - blockShiftOffset + 16) / 16;
-                var NRookSg = TinyUniformSampleGenerator(block, (kCandidateSamples + 1 + gNumSpatialRounds) * params.seed + kCandidateSamples);
-                // randomly select one N-rooks pattern from 256 patterns
-                const uint patternIndex = min(255, sampleNext1D(NRookSg) * 256);
-                pixelInBlock = (pixel - blockShiftOffset + 16) % 16;
-                int pixelInBlockId = pixelInBlock.y * 16 + pixelInBlock.x;
-                int byteAddress = pixelInBlockId / 2;
-                uint word = nRooksPattern.Load(patternIndex * 256 + 128 + 4 * (byteAddress / 4));
-                int groupId = (word >> (8 * (byteAddress % 4)) >> (4 * (pixelInBlockId % 2))) & 0xF;
-
-                NRookQuery = int4(pixelInBlock, groupId, patternIndex);
-            }
-
-            for (int i = 0; i < neighborCount; ++i)
-            {
-                int2 neighborPixel = getPathReuseNextNeighborPixel(NRookQuery, pixel, i);
-
-                if (!isValidScreenRegion(neighborPixel)) continue;
-                PathReservoir neighborReservoir = outputReservoirs[params.getReservoirOffset(neighborPixel)];
-
-                PackedHitInfo neighborPrimaryHitPacked;
-                ShadingData neighborPrimarySd = getPixelShadingData(neighborPixel, neighborPrimaryHitPacked);
-                if (!isValidPackedHitInfo(neighborPrimaryHitPacked)) continue;
-
-                float p_sum = 0;
-                float p_self = 0;
-                float dstJacobian;
-
-                PathReservoir tempDstReservoir = dstReservoir;
-
-                if (i == pixelInBlock.x) 
-                {
-                    tempDstReservoir = neighborReservoir;
-                    tempDstReservoir.rcVertexIrradiance[0] = tempDstReservoir.F;
-                    tempDstReservoir.rcVertexIrradiance[1] = tempDstReservoir.cachedJacobian;
-                    tempDstReservoir.cachedJacobian[0] = 1;
-                    tempDstReservoir.cachedJacobian[1] = 1;
-                }
-                else
-                {
-                    shiftAndMergeReservoir(params, false, dstJacobian, centralPrimaryHitPacked, centralPrimarySd, tempDstReservoir,
-                        neighborPrimarySd, neighborReservoir, dummyRcData, true, sg, true, 1.f, true); // "true" means hypothetically selected as the sample
-                }
-
-                {
-                    float misWeight = misWeightBuffer[params.getReservoirOffset(neighborPixel)].rcBSDFMISWeight;
-                    float jacobian = tempDstReservoir.cachedJacobian[0];
-                    float jacobianNEE = tempDstReservoir.cachedJacobian[1];
-                    dstReservoir.F += tempDstReservoir.rcVertexIrradiance[0] * jacobian * misWeight;
-                    float misWeightNEE = misWeightBuffer[params.getReservoirOffset(neighborPixel)].rcNEEMISWeight;
-                    dstReservoir.F += tempDstReservoir.rcVertexIrradiance[1] * jacobianNEE * misWeightNEE;
-                }
-            }
-
-            color = dstReservoir.F;
-        }
-#else
         ///////////////////
         /// TALBOT RMIS ///
         ///////////////////
@@ -520,13 +424,11 @@ struct PathReusePass
                 color = dstReservoir.F * dstReservoir.weight;
             }
         }
-#endif
 
         if (dstReservoir.weight < 0.f) dstReservoir.weight = 0.f;
         if (isnan(dstReservoir.weight) || isinf(dstReservoir.weight)) dstReservoir.weight = 0.f;
 
-        if (PathSamplingMode(kPathSamplingMode) != PathSamplingMode::PathReuse)
-            temporalReservoirs[centralOffset] = dstReservoir;
+        temporalReservoirs[centralOffset] = dstReservoir;
 
         if (any(isnan(color) || isinf(color) || color < 0.f)) color = 0.f;
         if (gIsLastRound)

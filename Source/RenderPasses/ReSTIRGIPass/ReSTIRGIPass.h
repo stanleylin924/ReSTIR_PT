@@ -190,7 +190,6 @@ private:
 
     ComputePass::SharedPtr          mpSpatialReusePass;      ///< Merges reservoirs.
     ComputePass::SharedPtr          mpTemporalReusePass;      ///< Merges reservoirs.
-    ComputePass::SharedPtr          mpComputePathReuseMISWeightsPass;
 
     ComputePass::SharedPtr          mpSpatialPathRetracePass;
     ComputePass::SharedPtr          mpTemporalPathRetracePass;
@@ -215,6 +214,4 @@ private:
     Texture::SharedPtr              mpTemporalVBuffer;
 
     Texture::SharedPtr              mpNeighborOffsets;
-
-    Buffer::SharedPtr               mNRooksPatternBuffer;
 };
