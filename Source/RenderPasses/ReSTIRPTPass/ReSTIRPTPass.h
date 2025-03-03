@@ -115,7 +115,7 @@ private:
         bool            rcDataOfflineMode = false;
 
 		// Denoising parameters
-		bool        useNRDDemodulation = true;                  ///< Global switch for NRD demodulation.
+		bool        useNRDDemodulation = false;                  ///< Global switch for NRD demodulation.
 
         Program::DefineList getDefines(const ReSTIRPTPass& owner) const;
     };
