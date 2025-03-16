@@ -39,8 +39,8 @@
 #define DiffuseBrdfFrostbite    2
 
 #ifndef DiffuseBrdf
-#define DiffuseBrdf DiffuseBrdfLambert 
-//#define DiffuseBrdf DiffuseBrdfFrostbite
+//#define DiffuseBrdf DiffuseBrdfLambert 
+#define DiffuseBrdf DiffuseBrdfFrostbite
 #endif
 
 #define SpecularMaskingFunctionSmithGGXSeparable    0       ///< Used by UE4.
